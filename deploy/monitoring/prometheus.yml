@@ -1,0 +1,27 @@
+# ==============================================================================
+# PROMETHEUS SCRAPE CONFIGURATION FOR KCHT INFRASTRUCTURE
+# ==============================================================================
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # 1. Spring Boot 3 Backend Actuator Metrics
+  - job_name: 'kcht-backend'
+    metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['backend:8089']
+        labels:
+          application: 'kcht-api-service'
+          environment: 'production'
+
+  # 2. MinIO S3 Cluster Metrics
+  - job_name: 'kcht-minio'
+    metrics_path: '/minio/v2/metrics/cluster'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['minio:9000']
+        labels:
+          application: 'kcht-minio'
+          environment: 'production'

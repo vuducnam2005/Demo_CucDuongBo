@@ -1,0 +1,89 @@
+server:
+  port: ${SERVER_PORT:8089}
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      force-response: true
+
+spring:
+  application:
+    name: kcht-api-service
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5436}/${POSTGRES_DB:kcht_db}?currentSchema=public&reWriteBatchedInserts=true
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 500
+          order_inserts: true
+          order_updates: true
+    open-in-view: false
+  cache:
+    type: simple
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+
+kcht:
+  data:
+    dir: ${KCHT_DATA_DIR:C:\Data\kcht_json_2026-10-05}
+  import:
+    batch-size: 500
+    dry-run: false
+  security:
+    allow-anonymous-admin: ${ALLOW_ANONYMOUS_ADMIN:false}
+    jwt:
+      secret: ${JWT_SECRET}
+      access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
+      refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    rate-limit:
+      login-max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
+      login-lockout-duration-ms: ${LOGIN_LOCKOUT_MS:900000}
+    cookie:
+      name: ${REFRESH_COOKIE_NAME}
+      secure: ${REFRESH_COOKIE_SECURE}
+      same-site: ${REFRESH_COOKIE_SAME_SITE}
+      domain: ${REFRESH_COOKIE_DOMAIN}
+      path: ${REFRESH_COOKIE_PATH}
+  storage:
+    type: ${STORAGE_TYPE:local}
+    local-path: ${STORAGE_LOCAL_PATH:./data/storage}
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9010}
+    access-key: ${MINIO_ROOT_USER}
+    secret-key: ${MINIO_ROOT_PASSWORD}
+    bucket-name: ${MINIO_BUCKET:kcht-documents}
+  queue:
+    type: ${QUEUE_TYPE:in-memory}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui/index.html
+    operations-sorter: method
+    tags-sorter: alpha
+
+logging:
+  level:
+    root: INFO
+    vn.gov.drvn.kcht: DEBUG
+    org.hibernate.SQL: WARN

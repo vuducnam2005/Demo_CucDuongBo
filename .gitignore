@@ -1,0 +1,51 @@
+# ==============================================================================
+# GITIGNORE FOR KCHT ROAD INFRASTRUCTURE PLATFORM
+# ==============================================================================
+
+# Environment files and credentials (P2.1)
+.env
+.env.local
+.env.*.local
+.env.production
+*.key
+*.pem
+*.pfx
+*.keystore
+*.p12
+deploy/nginx/ssl/*.key
+deploy/nginx/ssl/*.crt
+
+# Allow example templates
+!.env.example
+!.env.production.example
+
+# Maven / Java Build Artifacts
+target/
+*.jar
+*.war
+*.class
+.mvn/wrapper/maven-wrapper.jar
+
+# Frontend Build & Node Modules
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/.env
+frontend/.env.local
+frontend/*.tsbuildinfo
+
+# Logs & Runtime Dumps
+*.log
+*.dump
+deploy/backups/
+backups/
+data/storage/
+
+# IDE & Editor Configuration
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

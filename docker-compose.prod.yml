@@ -1,0 +1,272 @@
+# ==============================================================================
+# PRODUCTION DOCKER COMPOSE CONFIGURATION
+# KCHT ĐƯỜNG BỘ - HỆ THỐNG QUẢN LÝ DỮ LIỆU HẠ TẦNG GIAO THÔNG ĐƯỜNG BỘ
+# ==============================================================================
+name: kcht-production
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Cơ sở dữ liệu: PostgreSQL 16 + PostGIS 3.4 (Tuned for High Concurrency)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: kcht_prod_postgres
+    restart: unless-stopped
+    shm_size: 1g
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Vui lòng cấu hình POSTGRES_DB trong .env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?Vui lòng cấu hình POSTGRES_USER trong .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Vui lòng cấu hình POSTGRES_PASSWORD trong .env.production}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - kcht_prod_pgdata:/var/lib/postgresql/data
+      - kcht_prod_backups:/backups
+    command: >
+      postgres
+      -c shared_buffers=1024MB
+      -c effective_cache_size=3072MB
+      -c maintenance_work_mem=256MB
+      -c work_mem=32MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c max_connections=100
+      -c log_min_duration_statement=2000
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 4096M
+        reservations:
+          cpus: '0.50'
+          memory: 1024M
+    networks:
+      - kcht_prod_backend_net
+
+  # ----------------------------------------------------------------------------
+  # 2. Database Migration: Flyway 10
+  # ----------------------------------------------------------------------------
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: kcht_prod_flyway
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: -connectRetries=60 -baselineOnMigrate=true migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Vui lòng cấu hình POSTGRES_DB trong .env.production}
+      FLYWAY_USER: ${POSTGRES_USER:?Vui lòng cấu hình POSTGRES_USER trong .env.production}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?Vui lòng cấu hình POSTGRES_PASSWORD trong .env.production}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CONNECT_RETRIES: 60
+    volumes:
+      - ./db/migration:/flyway/sql:ro
+    networks:
+      - kcht_prod_backend_net
+
+  # ----------------------------------------------------------------------------
+  # 3. Object Storage: MinIO / S3 Storage Engine
+  # ----------------------------------------------------------------------------
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-05-10T01-41-38Z
+    container_name: kcht_prod_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Vui lòng cấu hình MINIO_ROOT_USER trong .env.production}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Vui lòng cấu hình MINIO_ROOT_PASSWORD trong .env.production}
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    volumes:
+      - kcht_prod_miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 1024M
+    networks:
+      - kcht_prod_backend_net
+
+  # ----------------------------------------------------------------------------
+  # 4. MinIO Bucket Initializer & Quotas
+  # ----------------------------------------------------------------------------
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2024-05-09T17-04-24Z
+    container_name: kcht_prod_minio_init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb myminio/${MINIO_BUCKET:-kcht-documents} --ignore-existing;
+      /usr/bin/mc mb myminio/kcht-media --ignore-existing;
+      /usr/bin/mc mb myminio/kcht-quarantine --ignore-existing;
+      /usr/bin/mc mb myminio/kcht-backups --ignore-existing;
+      echo '[INFO] Đã khởi tạo hoàn tất các Bucket MinIO cho môi trường sản xuất.';
+      exit 0;
+      "
+    networks:
+      - kcht_prod_backend_net
+
+  # ----------------------------------------------------------------------------
+  # 5. Backend REST API: Spring Boot 3 + Java 21 LTS
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kcht-backend:1.0.0
+    container_name: kcht_prod_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: 8089
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?Vui lòng cấu hình POSTGRES_DB trong .env.production}
+      POSTGRES_USER: ${POSTGRES_USER:?Vui lòng cấu hình POSTGRES_USER trong .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Vui lòng cấu hình POSTGRES_PASSWORD trong .env.production}
+      HIKARI_MAX_POOL_SIZE: ${HIKARI_MAX_POOL_SIZE:-25}
+      JWT_SECRET: ${JWT_SECRET:?Vui lòng cấu hình JWT_SECRET trong .env.production}
+      JWT_ACCESS_EXPIRATION_MS: ${JWT_ACCESS_EXPIRATION_MS:-900000}
+      JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-604800000}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:?Vui lòng cấu hình REFRESH_COOKIE_NAME trong .env.production}
+      REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:?Vui lòng cấu hình REFRESH_COOKIE_SECURE=true trong .env.production}
+      REFRESH_COOKIE_SAME_SITE: ${REFRESH_COOKIE_SAME_SITE:?Vui lòng cấu hình REFRESH_COOKIE_SAME_SITE trong .env.production}
+      REFRESH_COOKIE_DOMAIN: ${REFRESH_COOKIE_DOMAIN:?Vui lòng cấu hình REFRESH_COOKIE_DOMAIN trong .env.production}
+      REFRESH_COOKIE_PATH: ${REFRESH_COOKIE_PATH:?Vui lòng cấu hình REFRESH_COOKIE_PATH trong .env.production}
+      STORAGE_TYPE: s3
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Vui lòng cấu hình MINIO_ROOT_USER trong .env.production}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Vui lòng cấu hình MINIO_ROOT_PASSWORD trong .env.production}
+      MINIO_BUCKET: ${MINIO_BUCKET:-kcht-documents}
+      ALLOW_ANONYMOUS_ADMIN: "false"
+      LOGIN_MAX_ATTEMPTS: 5
+      LOGIN_LOCKOUT_MS: 900000
+    volumes:
+      - kcht_prod_app_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8089/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 2048M
+        reservations:
+          cpus: '0.50'
+          memory: 512M
+    networks:
+      - kcht_prod_backend_net
+
+  # ----------------------------------------------------------------------------
+  # 6. Frontend SPA Web Application: React + Vite + Nginx
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: kcht-frontend:1.0.0
+    container_name: kcht_prod_frontend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+    networks:
+      - kcht_prod_frontend_net
+
+  # ----------------------------------------------------------------------------
+  # 7. Edge Reverse Proxy & TLS Termination: Nginx
+  # ----------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: kcht_prod_nginx
+    restart: unless-stopped
+    ports:
+      - "${HOST_HTTP_PORT:-80}:80"
+      - "${HOST_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/ssl:/etc/nginx/ssl:ro
+      - kcht_prod_certbot_acme:/var/www/certbot:ro
+      - kcht_prod_nginx_logs:/var/log/nginx
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 512M
+    networks:
+      - kcht_prod_frontend_net
+      - kcht_prod_backend_net
+
+volumes:
+  kcht_prod_pgdata:
+    name: kcht_prod_pgdata
+  kcht_prod_backups:
+    name: kcht_prod_backups
+  kcht_prod_miniodata:
+    name: kcht_prod_miniodata
+  kcht_prod_app_logs:
+    name: kcht_prod_app_logs
+  kcht_prod_nginx_logs:
+    name: kcht_prod_nginx_logs
+  kcht_prod_certbot_acme:
+    name: kcht_prod_certbot_acme
+
+networks:
+  kcht_prod_frontend_net:
+    name: kcht_prod_frontend_net
+    driver: bridge
+  kcht_prod_backend_net:
+    name: kcht_prod_backend_net
+    driver: bridge

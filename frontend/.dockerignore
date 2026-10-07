@@ -1,0 +1,13 @@
+node_modules
+dist
+test-results
+.git
+.vscode
+*.tsbuildinfo
+
+# Secrets & Env files
+.env
+.env.*
+!.env.example
+*.key
+*.pem

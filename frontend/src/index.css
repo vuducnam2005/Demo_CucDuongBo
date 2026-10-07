@@ -1,0 +1,144 @@
+/* Base reset & typography */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: #f0f2f5;
+  color: #262626;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom modern scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Shell & Layout styling */
+.kcht-header {
+  border-bottom: 1px solid #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.kcht-logo-wrapper {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  background-color: #002140;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease-in-out;
+}
+
+.kcht-content-container {
+  padding: 20px 24px;
+  min-height: calc(100vh - 56px - 48px);
+}
+
+.kcht-card {
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+}
+
+.kcht-asset-table .ant-table-container {
+  overflow: visible;
+}
+
+.kcht-asset-table .ant-table-cell-fix-right {
+  box-shadow: -6px 0 10px -8px rgba(0, 0, 0, 0.35);
+}
+
+.kcht-asset-table .ant-table-cell-fix-right-first::after {
+  box-shadow: inset -8px 0 8px -8px rgba(0, 0, 0, 0.22);
+}
+
+.kcht-asset-mobile-list .ant-list-item {
+  padding-inline: 0;
+}
+
+.kcht-asset-mobile-actions {
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Table Toolbar responsive styling */
+.kcht-table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.kcht-table-toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.kcht-table-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .kcht-content-container {
+    padding: 12px 12px;
+  }
+  
+  .kcht-table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .kcht-table-toolbar-left,
+  .kcht-table-toolbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .kcht-header {
+    padding-inline: 8px !important;
+  }
+
+  .kcht-header-system-title,
+  .kcht-header .ant-breadcrumb,
+  .kcht-header-user-meta {
+    display: none;
+  }
+
+  .kcht-content-container > .ant-layout-content,
+  .kcht-content-container > div {
+    padding: 12px !important;
+  }
+}

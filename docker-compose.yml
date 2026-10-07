@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: kcht_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kcht_db}
+      POSTGRES_USER: ${POSTGRES_USER:-kcht_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
+      PGTZ: ${PGTZ:-UTC}
+    ports:
+      - "${POSTGRES_PORT:-5436}:5432"
+    volumes:
+      - kcht_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - kcht_network
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: kcht_flyway
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: -connectRetries=60 migrate
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-kcht_db}
+      FLYWAY_USER: ${POSTGRES_USER:-kcht_user}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD}
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CONNECT_RETRIES: 60
+    volumes:
+      - ./db/migration:/flyway/sql:ro
+    networks:
+      - kcht_network
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-05-10T01-41-38Z
+    container_name: kcht_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kcht_minio_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_PORT:-9010}:9000"
+      - "${MINIO_CONSOLE_PORT:-9011}:9001"
+    volumes:
+      - kcht_miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - kcht_network
+
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2024-05-09T17-04-24Z
+    container_name: kcht_minio_init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER:-kcht_minio_user} $${MINIO_ROOT_PASSWORD};
+      /usr/bin/mc mb myminio/${MINIO_BUCKET:-kcht-documents} --ignore-existing;
+      /usr/bin/mc mb myminio/kcht-media --ignore-existing;
+      /usr/bin/mc mb myminio/kcht-quarantine --ignore-existing;
+      echo 'Khởi tạo các bucket MinIO hoàn tất!';
+      exit 0;
+      "
+    networks:
+      - kcht_network
+
+volumes:
+  kcht_pgdata:
+    name: kcht_pgdata
+  kcht_miniodata:
+    name: kcht_miniodata
+
+networks:
+  kcht_network:
+    name: kcht_network

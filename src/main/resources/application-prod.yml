@@ -1,0 +1,88 @@
+# ==============================================================================
+# PRODUCTION ENVIRONMENT PROFILE CONFIGURATION (SPRING_PROFILES_ACTIVE=prod)
+# ==============================================================================
+server:
+  port: ${SERVER_PORT:8089}
+  shutdown: graceful
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB}?currentSchema=public&reWriteBatchedInserts=true
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${HIKARI_MAX_POOL_SIZE:25}
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      idle-timeout: 300000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+      leak-detection-threshold: 5000
+      pool-name: KchtProductionHikariPool
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        generate_statistics: false
+        jdbc:
+          batch_size: 500
+          order_inserts: true
+          order_updates: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,diskSpace
+    prometheus:
+      enabled: true
+
+kcht:
+  security:
+    allow-anonymous-admin: false
+    jwt:
+      secret: ${JWT_SECRET}
+      access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
+      refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    cookie:
+      name: ${REFRESH_COOKIE_NAME}
+      secure: ${REFRESH_COOKIE_SECURE}
+      same-site: ${REFRESH_COOKIE_SAME_SITE}
+      domain: ${REFRESH_COOKIE_DOMAIN}
+      path: ${REFRESH_COOKIE_PATH}
+    rate-limit:
+      login-max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
+      login-lockout-duration-ms: ${LOGIN_LOCKOUT_MS:900000}
+  storage:
+    type: ${STORAGE_TYPE:s3}
+    endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+    access-key: ${MINIO_ROOT_USER}
+    secret-key: ${MINIO_ROOT_PASSWORD}
+    bucket-name: ${MINIO_BUCKET:kcht-documents}
+  queue:
+    type: ${QUEUE_TYPE:in-memory}
+
+logging:
+  pattern:
+    console: '{"timestamp":"%d{yyyy-MM-dd HH:mm:ss.SSS}","level":"%p","thread":"%t","logger":"%logger{36}","message":"%replace(%m){"[\r\n]+", " "}%wEx"}'
+  level:
+    root: WARN
+    vn.gov.drvn.kcht: INFO
+    org.springframework.security: WARN
+    org.hibernate: WARN

@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: kcht-import-service-test
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+
+kcht:
+  data:
+    dir: C:\Data\kcht_json_2026-10-05
+  import:
+    batch-size: 100
+    dry-run: true
+  security:
+    allow-anonymous-admin: true
+    jwt:
+      secret: test-only-jwt-secret-not-for-production-2026
+      access-token-expiration-ms: 900000
+      refresh-token-expiration-ms: 604800000
+    rate-limit:
+      login-max-attempts: 5
+      login-lockout-duration-ms: 900000
+    cookie:
+      name: kcht_refresh_token
+      secure: false
+      same-site: Lax
+      domain: ""
+      path: /api/auth
+  storage:
+    type: local
+    access-key: test-only-storage-user
+    secret-key: test-only-storage-secret-not-production
+    bucket-name: test-documents
