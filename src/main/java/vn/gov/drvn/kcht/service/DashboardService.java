@@ -26,6 +26,11 @@ public class DashboardService {
         this.jdbcClient = jdbcClient;
     }
 
+    @org.springframework.cache.annotation.CacheEvict(value = "dashboardSummary", allEntries = true)
+    public void evictCache() {
+        log.info("Xóa cache dashboard summary");
+    }
+
     @Cacheable(value = "dashboardSummary", key = "'summary'")
     public DashboardSummaryDto getSummary() {
         log.debug("Lấy thống kê tổng quan dashboard...");

@@ -23,7 +23,11 @@ public class DashboardApiController {
 
     @GetMapping("/summary")
     @Operation(summary = "Lấy số liệu thống kê KPI tổng quan", description = "Tổng hợp tổng số tài sản, số tập dữ liệu, cầu, biển báo, tuyến quốc lộ và chiều dài từ server-side")
-    public ResponseEntity<DashboardSummaryDto> getSummary() {
+    public ResponseEntity<DashboardSummaryDto> getSummary(
+            @RequestParam(required = false, defaultValue = "false") boolean refresh) {
+        if (refresh) {
+            dashboardService.evictCache();
+        }
         return ResponseEntity.ok(dashboardService.getSummary());
     }
 
