@@ -25,7 +25,20 @@ jobs:
         run: chmod +x mvnw
 
       - name: Run Backend Tests
-        run: ./mvnw test -B
+        env:
+          POSTGRES_USER: kcht_user
+          POSTGRES_PASSWORD: test_password
+          JWT_SECRET: test-only-jwt-secret-not-for-production-2026
+          STORAGE_ACCESS_KEY: test_access_key
+          STORAGE_SECRET_KEY: test_secret_key
+        run: |
+          ./mvnw clean test -B || {
+            echo "=== SUREFIRE REPORTS ==="
+            for f in target/surefire-reports/*.txt; do
+              [ -e "$f" ] && echo "--- $f ---" && cat "$f"
+            done
+            exit 1
+          }
 
       - name: Build Spring Boot Application
         run: ./mvnw package -B -DskipTests
