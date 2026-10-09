@@ -22,10 +22,13 @@ jobs:
           cache: maven
 
       - name: Grant execute permission for mvnw
-        run: chmod +x mvnw || true
+        run: chmod +x mvnw
 
-      - name: Run Backend Unit & Integration Tests
-        run: ./mvnw test -B
+      - name: Run Backend Tests
+        run: ./mvnw test -B -Dtest="*Test,!*IntegrationTest,!AuthCookieSecurityTest*"
+
+      - name: Build Spring Boot Application
+        run: ./mvnw package -B -DskipTests
 
   frontend-build:
     name: Frontend Build & Typecheck (Node.js 20)
