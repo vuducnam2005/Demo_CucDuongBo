@@ -199,3 +199,63 @@ export const exportRoadSignBlackspotReportCsv = async (params?: {
   });
   return response.data;
 };
+
+export interface IriSummary {
+  surveyLengthKm: number;
+  totalValidSegments: number;
+  averageIri: number;
+  medianIri: number;
+  standardName: string;
+  totalCorrelatedDefects: number;
+  poorOrVeryPoorPercentage: number;
+}
+
+export interface IriConditionDistribution {
+  conditionGroup: string;
+  conditionLabel: string;
+  count: number;
+  percentage: number;
+  color: string;
+  description: string;
+}
+
+export interface IriSegmentItem {
+  rank: number;
+  roadName: string;
+  routeCode: string;
+  chainage: string;
+  startMeters?: number;
+  endMeters?: number;
+  iriValue: number;
+  speedKmh?: number;
+  conditionGroup: string;
+  conditionLabel: string;
+  defectCount: number;
+}
+
+export interface IriRoughnessReportResponse {
+  summary: IriSummary;
+  distribution: IriConditionDistribution[];
+  segments: IriSegmentItem[];
+  totalSegments: number;
+}
+
+export const fetchIriRoughnessReport = async (params?: {
+  route?: string;
+  conditionGroup?: string;
+}): Promise<IriRoughnessReportResponse> => {
+  const response = await apiClient.get<IriRoughnessReportResponse>('/api/reports/iri-roughness', { params });
+  return response.data;
+};
+
+export const exportIriRoughnessReportCsv = async (params?: {
+  route?: string;
+  conditionGroup?: string;
+}): Promise<Blob> => {
+  const response = await apiClient.get('/api/reports/iri-roughness/export', {
+    params,
+    responseType: 'blob',
+  });
+  return response.data;
+};
+

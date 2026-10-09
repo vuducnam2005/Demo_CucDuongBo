@@ -26,6 +26,8 @@ import {
   ClockCircleOutlined,
   ThunderboltOutlined,
   AuditOutlined,
+  DashboardOutlined,
+  RiseOutlined,
 } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -35,9 +37,12 @@ import {
   exportMaintenanceReportCsv,
   fetchRoadSignBlackspotReport,
   exportRoadSignBlackspotReportCsv,
+  fetchIriRoughnessReport,
+  exportIriRoughnessReportCsv,
   RoadLengthReportResponse,
   MaintenanceReportResponse,
   RoadSignBlackspotReportResponse,
+  IriRoughnessReportResponse,
 } from '../services/reportApi';
 import { getApiErrorMessage, shouldRetryQuery } from '../services/api';
 import { QueryState, TableSkeleton } from '../components/common';
@@ -68,6 +73,10 @@ export const ReportIndexPage: React.FC = () => {
   const [sbRoute, setSbRoute] = useState<string>('');
   const [sbCategory, setSbCategory] = useState<string>('');
 
+  // Filters for Road Roughness IRI (HDM-4)
+  const [iriRoute, setIriRoute] = useState<string>('');
+  const [iriCondition, setIriCondition] = useState<string>('');
+
   const [exporting, setExporting] = useState(false);
 
   // Queries
@@ -89,6 +98,13 @@ export const ReportIndexPage: React.FC = () => {
     queryKey: ['reportRoadSigns', sbBranch, sbRoute, sbCategory],
     queryFn: () => fetchRoadSignBlackspotReport({ branch: sbBranch, route: sbRoute, category: sbCategory }),
     enabled: activeTab === 'signs-blackspots',
+    retry: shouldRetryQuery,
+  });
+
+  const iriQuery = useQuery<IriRoughnessReportResponse>({
+    queryKey: ['reportIriRoughness', iriRoute, iriCondition],
+    queryFn: () => fetchIriRoughnessReport({ route: iriRoute, conditionGroup: iriCondition }),
+    enabled: activeTab === 'iri-roughness',
     retry: shouldRetryQuery,
   });
 
@@ -156,6 +172,27 @@ export const ReportIndexPage: React.FC = () => {
     }
   };
 
+  const handleExportIri = async () => {
+    if (exporting) return;
+    try {
+      setExporting(true);
+      const blob = await exportIriRoughnessReportCsv({ route: iriRoute, conditionGroup: iriCondition });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Bao_cao_khao_sat_IRI_HDM4_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.parentNode?.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      message.success('Đã tải xuống báo cáo khảo sát độ gồ ghề mặt đường IRI thành công (CSV UTF-8 BOM)');
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const branchOptions = [
     { label: 'Tất cả khu vực', value: '' },
     { label: 'Khu Quản lý đường bộ I (Bắc Bộ)', value: 'cuc_ql_duong_bo_1' },
@@ -206,6 +243,14 @@ export const ReportIndexPage: React.FC = () => {
               label: (
                 <span>
                   <WarningOutlined /> Biển báo QCVN 41 & Điểm đen TNGT
+                </span>
+              ),
+            },
+            {
+              key: 'iri-roughness',
+              label: (
+                <span>
+                  <DashboardOutlined /> Khảo sát Độ gồ ghề mặt đường & IRI (HDM-4)
                 </span>
               ),
             },
@@ -930,6 +975,290 @@ export const ReportIndexPage: React.FC = () => {
               />
             </Card>
             </>
+            </QueryState>
+          </div>
+        )}
+
+        {/* TAB 4: ROAD ROUGHNESS IRI & HDM-4 REPORT */}
+        {activeTab === 'iri-roughness' && (
+          <div>
+            <Row gutter={[12, 12]} align="middle" style={{ marginBottom: 16 }}>
+              <Col xs={24} sm={10}>
+                <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>Tuyến / Đoạn đường khảo sát:</div>
+                <Input
+                  placeholder="Mã hoặc tên tuyến (VD: QL1, QL53, Km1282)..."
+                  value={iriRoute}
+                  onChange={(e) => setIriRoute(e.target.value)}
+                  prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                  allowClear
+                />
+              </Col>
+              <Col xs={24} sm={8}>
+                <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>Phân loại chất lượng HDM-4:</div>
+                <Select
+                  style={{ width: '100%' }}
+                  value={iriCondition}
+                  onChange={setIriCondition}
+                  options={[
+                    { label: 'Tất cả mức độ', value: '' },
+                    { label: 'Rất kém (IRI ≥ 6.0 m/km)', value: 'very_poor' },
+                    { label: 'Kém (4.0 ≤ IRI < 6.0 m/km)', value: 'poor' },
+                    { label: 'Trung bình (2.0 ≤ IRI < 4.0 m/km)', value: 'fair' },
+                    { label: 'Tốt (IRI < 2.0 m/km)', value: 'good' },
+                  ]}
+                />
+              </Col>
+              <Col xs={24} sm={6} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', paddingTop: 18 }}>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => iriQuery.refetch()}
+                  loading={iriQuery.isFetching}
+                >
+                  Làm mới
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  onClick={handleExportIri}
+                  loading={exporting}
+                >
+                  Xuất CSV
+                </Button>
+              </Col>
+            </Row>
+
+            <QueryState
+              isLoading={iriQuery.isLoading}
+              isError={iriQuery.isError}
+              error={iriQuery.error}
+              isEmpty={(iriQuery.data?.segments.length ?? 0) === 0}
+              loading={<TableSkeleton rows={8} columns={6} />}
+              emptyTitle="Không có đoạn khảo sát phù hợp"
+              emptyDescription="Hãy thay đổi bộ lọc tuyến hoặc mức độ chất lượng."
+              emptyActionText={iriRoute || iriCondition ? 'Xóa bộ lọc' : undefined}
+              onEmptyAction={() => {
+                setIriRoute('');
+                setIriCondition('');
+              }}
+              onRetry={() => iriQuery.refetch()}
+            >
+              {iriQuery.data && (
+                <>
+                  {/* Summary KPI Cards */}
+                  <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                    <Col xs={24} sm={6}>
+                      <Card size="small" variant="borderless" style={{ background: '#f0f5ff', borderRadius: 8 }}>
+                        <Statistic
+                          title="Chiều dài khảo sát"
+                          value={iriQuery.data.summary.surveyLengthKm}
+                          suffix="km"
+                          valueStyle={{ color: '#1677ff', fontWeight: 700 }}
+                          prefix={<AuditOutlined />}
+                        />
+                        <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                          {iriQuery.data.summary.totalValidSegments} đoạn đo kiểm 100m chuẩn
+                        </div>
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={6}>
+                      <Card size="small" variant="borderless" style={{ background: '#f6ffed', borderRadius: 8 }}>
+                        <Statistic
+                          title="IRI trung bình mạng lưới"
+                          value={iriQuery.data.summary.averageIri}
+                          suffix="m/km"
+                          valueStyle={{ color: '#52c41a', fontWeight: 700 }}
+                          prefix={<DashboardOutlined />}
+                        />
+                        <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                          Trung vị (p50): {iriQuery.data.summary.medianIri} m/km
+                        </div>
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={6}>
+                      <Card size="small" variant="borderless" style={{ background: '#fff2e8', borderRadius: 8 }}>
+                        <Statistic
+                          title="Tỷ lệ Kém & Rất kém"
+                          value={iriQuery.data.summary.poorOrVeryPoorPercentage}
+                          suffix="%"
+                          valueStyle={{ color: '#fa541c', fontWeight: 700 }}
+                          prefix={<WarningOutlined />}
+                        />
+                        <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                          Cần ưu tiên bảo trì sửa chữa
+                        </div>
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={6}>
+                      <Card size="small" variant="borderless" style={{ background: '#fff0f6', borderRadius: 8 }}>
+                        <Statistic
+                          title="Hư hỏng tương quan"
+                          value={iriQuery.data.summary.totalCorrelatedDefects}
+                          suffix="điểm"
+                          valueStyle={{ color: '#eb2f96', fontWeight: 700 }}
+                          prefix={<ThunderboltOutlined />}
+                        />
+                        <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                          Vết nứt, ổ gà, lún hằn vệt bánh
+                        </div>
+                      </Card>
+                    </Col>
+                  </Row>
+
+                  {/* HDM-4 Standards Distribution */}
+                  <Card
+                    title={
+                      <Space>
+                        <RiseOutlined style={{ color: '#1677ff' }} />
+                        <span>Phân bổ chất lượng mặt đường theo tiêu chuẩn quốc tế HDM-4 (World Bank / PIARC)</span>
+                      </Space>
+                    }
+                    size="small"
+                    style={{ marginBottom: 16 }}
+                  >
+                    <Row gutter={[16, 16]}>
+                      {iriQuery.data.distribution.map((item) => (
+                        <Col xs={24} sm={6} key={item.conditionGroup}>
+                          <Card size="small" style={{ borderLeft: `4px solid ${item.color}`, background: '#fafafa' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text strong style={{ color: item.color }}>{item.conditionLabel}</Text>
+                              <Tag color={item.color}>{item.count} đoạn</Tag>
+                            </div>
+                            <Progress
+                              percent={item.percentage}
+                              strokeColor={item.color}
+                              size="small"
+                              style={{ marginTop: 8 }}
+                            />
+                            <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4 }}>
+                              {item.description}
+                            </div>
+                          </Card>
+                        </Col>
+                      ))}
+                    </Row>
+                  </Card>
+
+                  {/* Detail Segments Table (Top worst road sections) */}
+                  <Card
+                    title={
+                      <Space>
+                        <span>Danh mục đoạn khảo sát IRI & Xếp hạng nguy cấp bảo trì</span>
+                        <Tag color="geekblue">{iriQuery.data.segments.length} đoạn hiển thị</Tag>
+                      </Space>
+                    }
+                    size="small"
+                  >
+                    <Table
+                      dataSource={iriQuery.data.segments}
+                      rowKey={(r) => `${r.roadName}_${r.chainage}_${r.rank}`}
+                      bordered
+                      size="small"
+                      pagination={{ pageSize: 15, showTotal: (t) => `Tổng số ${t} đoạn khảo sát` }}
+                      columns={[
+                        {
+                          title: 'Xếp hạng',
+                          dataIndex: 'rank',
+                          key: 'rank',
+                          width: 85,
+                          align: 'center',
+                          render: (r: number) => (
+                            <Tag color={r <= 10 ? 'red' : r <= 30 ? 'orange' : 'default'} style={{ fontWeight: 600 }}>
+                              #{r}
+                            </Tag>
+                          ),
+                        },
+                        {
+                          title: 'Tuyến đường / Đoạn khảo sát',
+                          dataIndex: 'roadName',
+                          key: 'roadName',
+                          render: (t: string) => <strong style={{ color: '#002140' }}>{t}</strong>,
+                        },
+                        {
+                          title: 'Lý trình',
+                          dataIndex: 'chainage',
+                          key: 'chainage',
+                          width: 110,
+                          align: 'center',
+                          render: (c: string) => <Tag color="blue">{c}</Tag>,
+                        },
+                        {
+                          title: 'Phạm vi đo (m)',
+                          key: 'range',
+                          width: 140,
+                          align: 'center',
+                          render: (_t, r) => (
+                            <span style={{ fontSize: 12, fontFamily: 'monospace' }}>
+                              {r.startMeters != null && r.endMeters != null
+                                ? `${r.startMeters.toLocaleString()} - ${r.endMeters.toLocaleString()}`
+                                : '—'}
+                            </span>
+                          ),
+                        },
+                        {
+                          title: 'Chỉ số IRI (m/km)',
+                          dataIndex: 'iriValue',
+                          key: 'iriValue',
+                          width: 140,
+                          align: 'right',
+                          sorter: (a, b) => a.iriValue - b.iriValue,
+                          defaultSortOrder: 'descend',
+                          render: (val: number) => {
+                            return (
+                              <Tag
+                                color={val >= 6.0 ? 'error' : val >= 4.0 ? 'warning' : 'success'}
+                                style={{ fontWeight: 700, fontSize: 13 }}
+                              >
+                                {val.toFixed(3)}
+                              </Tag>
+                            );
+                          },
+                        },
+                        {
+                          title: 'Đánh giá HDM-4',
+                          dataIndex: 'conditionLabel',
+                          key: 'conditionLabel',
+                          width: 130,
+                          align: 'center',
+                          render: (lbl: string, r) => {
+                            const color =
+                              r.conditionGroup === 'very_poor'
+                                ? 'error'
+                                : r.conditionGroup === 'poor'
+                                ? 'warning'
+                                : r.conditionGroup === 'fair'
+                                ? 'processing'
+                                : 'success';
+                            return <Tag color={color}>{lbl}</Tag>;
+                          },
+                        },
+                        {
+                          title: 'Tốc độ',
+                          dataIndex: 'speedKmh',
+                          key: 'speedKmh',
+                          width: 100,
+                          align: 'center',
+                          render: (spd?: number) => (spd != null ? `${spd.toFixed(1)} km/h` : '—'),
+                        },
+                        {
+                          title: 'Hư hỏng tương quan',
+                          dataIndex: 'defectCount',
+                          key: 'defectCount',
+                          width: 150,
+                          align: 'center',
+                          render: (cnt: number) =>
+                            cnt > 0 ? (
+                              <Tag color="volcano" icon={<WarningOutlined />}>
+                                {cnt} lỗi/km
+                              </Tag>
+                            ) : (
+                              <Text type="secondary">0</Text>
+                            ),
+                        },
+                      ]}
+                    />
+                  </Card>
+                </>
+              )}
             </QueryState>
           </div>
         )}

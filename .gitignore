@@ -46,6 +46,7 @@ backups/
 data/storage/
 scratch/*.json
 scratch/*.png
+scratch/*.sql
 
 # IDE & Editor Configuration
 .idea/

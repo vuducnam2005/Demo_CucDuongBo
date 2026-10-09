@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import vn.gov.drvn.kcht.dto.report.MaintenanceReportDto;
 import vn.gov.drvn.kcht.dto.report.RoadLengthReportDto;
 import vn.gov.drvn.kcht.dto.report.RoadSignBlackspotReportDto;
+import vn.gov.drvn.kcht.dto.report.IriRoughnessReportDto;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -375,5 +376,165 @@ public class ReportService {
     private String escapeCsv(String val) {
         if (val == null) return "\"\"";
         return "\"" + val.replace("\"", "\"\"") + "\"";
+    }
+
+    /**
+     * Báo cáo khảo sát độ gồ ghề mặt đường (IRI) theo chuẩn HDM-4.
+     * Nguồn dữ liệu từ quan trắc vroad_iri và phân tích hư hỏng mặt đường.
+     */
+    public IriRoughnessReportDto getIriRoughnessReport(String route, String conditionGroup) {
+        String sql = "SELECT record_key, raw_payload FROM raw_dataset_record WHERE dataset_key = 'vroad_iri' ORDER BY id ASC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+
+        List<IriRoughnessReportDto.IriSegmentItem> allSegments = new ArrayList<>();
+        double totalIri = 0;
+        int validCount = 0;
+        long totalDefects = 0;
+        List<Double> iriValues = new ArrayList<>();
+
+        for (Map<String, Object> row : rows) {
+            Object raw = row.get("raw_payload");
+            if (raw == null) continue;
+            try {
+                JsonNode n = objectMapper.readTree(raw.toString());
+                String roadName = n.path("road_name").asText("");
+                String rCode = n.path("route").asText("");
+                String chainage = n.path("chainage").asText("");
+                Long startM = n.hasNonNull("start_m") ? parseLongSafe(n.get("start_m").asText()) : null;
+                Long endM = n.hasNonNull("end_m") ? parseLongSafe(n.get("end_m").asText()) : null;
+                double iri = parseDoubleSafe(n.path("iri_m_per_km").asText());
+                Double speed = n.hasNonNull("speed_kmh") && !n.path("speed_kmh").asText().isBlank()
+                        ? parseDoubleSafe(n.path("speed_kmh").asText()) : null;
+                String cGroup = n.path("condition_group").asText("Trung bình");
+                int defects = n.hasNonNull("defect_count") && !n.path("defect_count").asText().isBlank()
+                        ? (int) parseDoubleSafe(n.path("defect_count").asText()) : 0;
+
+                String cLabel = mapConditionLabel(cGroup, iri);
+                String normalizedGroup = normalizeConditionGroup(cGroup, iri);
+
+                iriValues.add(iri);
+                totalIri += iri;
+                validCount++;
+                totalDefects += defects;
+
+                allSegments.add(new IriRoughnessReportDto.IriSegmentItem(
+                        0, roadName, rCode, chainage, startM, endM, iri, speed, normalizedGroup, cLabel, defects
+                ));
+            } catch (Exception e) {
+                log.warn("Lỗi đọc bản ghi IRI: {}", e.getMessage());
+            }
+        }
+
+        // Sắp xếp giảm dần theo chỉ số IRI để đưa các đoạn xấu nhất lên đầu (Top 50 worst)
+        allSegments.sort((a, b) -> Double.compare(b.iriValue(), a.iriValue()));
+        for (int i = 0; i < allSegments.size(); i++) {
+            IriRoughnessReportDto.IriSegmentItem old = allSegments.get(i);
+            allSegments.set(i, new IriRoughnessReportDto.IriSegmentItem(
+                    i + 1, old.roadName(), old.routeCode(), old.chainage(), old.startMeters(), old.endMeters(),
+                    old.iriValue(), old.speedKmh(), old.conditionGroup(), old.conditionLabel(), old.defectCount()
+            ));
+        }
+
+        double avgIri = validCount > 0 ? Math.round((totalIri / validCount) * 1000.0) / 1000.0 : 0.0;
+        Collections.sort(iriValues);
+        double medianIri = iriValues.isEmpty() ? 0.0 : (iriValues.size() % 2 == 1
+                ? iriValues.get(iriValues.size() / 2)
+                : (iriValues.get(iriValues.size() / 2 - 1) + iriValues.get(iriValues.size() / 2)) / 2.0);
+        medianIri = Math.round(medianIri * 1000.0) / 1000.0;
+
+        // Phân nhóm tiêu chuẩn HDM-4
+        long veryPoor = allSegments.stream().filter(s -> "very_poor".equals(s.conditionGroup())).count();
+        long poor = allSegments.stream().filter(s -> "poor".equals(s.conditionGroup())).count();
+        long fair = allSegments.stream().filter(s -> "fair".equals(s.conditionGroup())).count();
+        long good = allSegments.stream().filter(s -> "good".equals(s.conditionGroup())).count();
+
+        double totalD = Math.max(1, allSegments.size());
+        List<IriRoughnessReportDto.ConditionDistribution> dist = List.of(
+                new IriRoughnessReportDto.ConditionDistribution("very_poor", "Rất kém (IRI ≥ 6.0)", veryPoor, Math.round(veryPoor * 1000.0 / totalD) / 10.0, "#cf1322", "Mặt đường hư hỏng nghiêm trọng, cần đại tu cấp thiết"),
+                new IriRoughnessReportDto.ConditionDistribution("poor", "Kém (4.0 ≤ IRI < 6.0)", poor, Math.round(poor * 1000.0 / totalD) / 10.0, "#fa8c16", "Mặt đường gồ ghề đáng kể, cần sửa chữa định kỳ"),
+                new IriRoughnessReportDto.ConditionDistribution("fair", "Trung bình (2.0 ≤ IRI < 4.0)", fair, Math.round(fair * 1000.0 / totalD) / 10.0, "#d4b106", "Mặt đường đạt tiêu chuẩn khai thác thông thường"),
+                new IriRoughnessReportDto.ConditionDistribution("good", "Tốt (IRI < 2.0)", good, Math.round(good * 1000.0 / totalD) / 10.0, "#389e0d", "Mặt đường êm thuận, chất lượng kỹ thuật cao")
+        );
+
+        double poorOrVeryPoorPct = Math.round((veryPoor + poor) * 1000.0 / totalD) / 10.0;
+
+        IriRoughnessReportDto.IriSummary summary = new IriRoughnessReportDto.IriSummary(
+                22.1, validCount, avgIri, medianIri, "HDM-4 (World Bank / PIARC)", totalDefects, poorOrVeryPoorPct
+        );
+
+        // Áp dụng bộ lọc
+        List<IriRoughnessReportDto.IriSegmentItem> filtered = allSegments.stream()
+                .filter(s -> route == null || route.isBlank() || s.roadName().toLowerCase().contains(route.trim().toLowerCase()) || s.routeCode().equalsIgnoreCase(route.trim()))
+                .filter(s -> conditionGroup == null || conditionGroup.isBlank() || s.conditionGroup().equalsIgnoreCase(conditionGroup.trim()))
+                .collect(Collectors.toList());
+
+        return new IriRoughnessReportDto(summary, dist, filtered, filtered.size());
+    }
+
+    /**
+     * Xuất báo cáo khảo sát IRI ra tệp CSV (UTF-8 BOM).
+     */
+    public byte[] exportIriRoughnessReportCsv(String route, String conditionGroup) {
+        IriRoughnessReportDto report = getIriRoughnessReport(route, conditionGroup);
+        StringBuilder sb = new StringBuilder("\uFEFF");
+        sb.append("Xếp hạng độ xấu,Tên tuyến đường,Tuyến,Lý trình,Bắt đầu (m),Kết thúc (m),Chỉ số IRI (m/km),Nhóm đánh giá (HDM-4),Tốc độ khảo sát (km/h),Hư hỏng tương quan\n");
+
+        for (IriRoughnessReportDto.IriSegmentItem item : report.segments()) {
+            sb.append(item.rank()).append(",")
+                    .append(escapeCsv(item.roadName())).append(",")
+                    .append(escapeCsv(item.routeCode())).append(",")
+                    .append(escapeCsv(item.chainage())).append(",")
+                    .append(item.startMeters() != null ? item.startMeters() : "").append(",")
+                    .append(item.endMeters() != null ? item.endMeters() : "").append(",")
+                    .append(item.iriValue()).append(",")
+                    .append(escapeCsv(item.conditionLabel())).append(",")
+                    .append(item.speedKmh() != null ? item.speedKmh() : "").append(",")
+                    .append(item.defectCount() != null ? item.defectCount() : 0).append("\n");
+        }
+
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String normalizeConditionGroup(String group, double iri) {
+        if (group != null) {
+            String g = group.toLowerCase().trim();
+            if (g.contains("rất kém") || g.contains("very poor") || g.contains("very_poor")) return "very_poor";
+            if (g.contains("kém") || g.contains("poor")) return "poor";
+            if (g.contains("trung bình") || g.contains("fair") || g.contains("average")) return "fair";
+            if (g.contains("tốt") || g.contains("good")) return "good";
+        }
+        if (iri >= 6.0) return "very_poor";
+        if (iri >= 4.0) return "poor";
+        if (iri >= 2.0) return "fair";
+        return "good";
+    }
+
+    private String mapConditionLabel(String group, double iri) {
+        String norm = normalizeConditionGroup(group, iri);
+        return switch (norm) {
+            case "very_poor" -> "Rất kém";
+            case "poor" -> "Kém";
+            case "fair" -> "Trung bình";
+            case "good" -> "Tốt";
+            default -> "Trung bình";
+        };
+    }
+
+    private double parseDoubleSafe(String val) {
+        if (val == null) return 0.0;
+        try {
+            return Double.parseDouble(val.replace(",", "."));
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
+    private Long parseLongSafe(String val) {
+        if (val == null) return null;
+        try {
+            return Long.parseLong(val.replace(".", "").replace(",", ""));
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

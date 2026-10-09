@@ -100,6 +100,9 @@ public class ReferenceCatalogQueryService {
 
                 return new PagedResponse<>(rawItems, validPage, validSize, rawTotal);
             }
+
+            // Nếu catalog tồn tại trong dataset_registry nhưng không có kết quả (lọc từ khóa hoặc bảng trống)
+            return new PagedResponse<>(Collections.emptyList(), validPage, validSize, 0L);
         }
 
         // 2. Tra cứu từ bảng chuẩn reference_catalog
@@ -148,6 +151,13 @@ public class ReferenceCatalogQueryService {
             }, params.toArray());
 
             return new PagedResponse<>(items, validPage, validSize, total != null ? total : 0);
+        }
+
+        // Kiểm tra xem catalogCode có tồn tại trong dataset_registry không
+        String registryCheck = "SELECT count(*) FROM dataset_registry WHERE dataset_key = ? OR dataset_key ILIKE ?";
+        Long regCount = jdbcTemplate.queryForObject(registryCheck, Long.class, catalogCode, "%" + catalogCode + "%");
+        if (regCount != null && regCount > 0) {
+            return new PagedResponse<>(Collections.emptyList(), validPage, validSize, 0L);
         }
 
         throw new ResourceNotFoundException("Không tìm thấy danh mục tham chiếu: " + catalogCode);
@@ -266,6 +276,7 @@ public class ReferenceCatalogQueryService {
 
     /**
      * Lấy danh sách tổng hợp tất cả các danh mục tham chiếu trong hệ thống.
+     * Bổ sung thông tin nhóm (groupKey, groupName) và icon cho mỗi danh mục.
      */
     public List<vn.gov.drvn.kcht.dto.CatalogSummaryDto> getAllCatalogsSummary() {
         String sql = """
@@ -280,11 +291,13 @@ public class ReferenceCatalogQueryService {
             String name = rs.getString("dataset_name");
             long count = rs.getLong("total_records");
 
-            // Format tên danh mục tiếng Việt thân thiện
             String displayName = mapCatalogDisplayName(key, name);
+            String description = mapCatalogDescription(key);
+            String[] group = resolveCatalogGroup(key);
 
             return new vn.gov.drvn.kcht.dto.CatalogSummaryDto(
-                    key, displayName, "Danh mục chuẩn hóa hệ thống KCHT ĐB", count, "dataset_registry", true
+                    key, displayName, description, count, "dataset_registry", true,
+                    group[0], group[1], group[2]
             );
         });
 
@@ -301,8 +314,11 @@ public class ReferenceCatalogQueryService {
             long cCount = rs.getLong("item_cnt");
             boolean exists = list.stream().anyMatch(c -> c.catalogCode().equalsIgnoreCase(cCode));
             if (!exists) {
+                String[] group = resolveCatalogGroup(cCode);
                 list.add(new vn.gov.drvn.kcht.dto.CatalogSummaryDto(
-                        cCode, mapCatalogDisplayName(cCode, cCode), "Danh mục tham chiếu chuẩn hóa", cCount, "reference_catalog", true
+                        cCode, mapCatalogDisplayName(cCode, cCode),
+                        mapCatalogDescription(cCode), cCount, "reference_catalog", true,
+                        group[0], group[1], group[2]
                 ));
             }
         });
@@ -452,14 +468,117 @@ public class ReferenceCatalogQueryService {
     private String mapCatalogDisplayName(String key, String fallback) {
         if (key == null) return fallback;
         String lower = key.toLowerCase();
+
+        // === Nhóm Địa giới hành chính ===
         if (lower.contains("tinhthanhpho")) return "Danh mục Tỉnh / Thành phố";
         if (lower.contains("xaphuong")) return "Danh mục Xã / Phường / Thị trấn";
+        if (lower.contains("quanhuyen")) return "Danh mục Quận / Huyện / Thị xã";
+
+        // === Nhóm Hạ tầng & Tuyến đường ===
         if (lower.contains("capduong")) return "Danh mục Cấp đường kỹ thuật";
-        if (lower.contains("loaimat")) return "Danh mục Loại mặt đường";
-        if (lower.contains("sohieubienbao")) return "Danh mục Số hiệu biển báo (QCVN 41)";
-        if (lower.contains("tuyenduongquocgia")) return "Danh mục Tuyến quốc lộ toàn quốc";
+        if (lower.contains("loaimat") || lower.contains("loaimatduong")) return "Danh mục Loại mặt đường";
+        if (lower.contains("tuyenduongquocgia") || lower.contains("tuyenquoclo")) return "Danh mục Tuyến quốc lộ toàn quốc";
+        if (lower.contains("tuyenduongnhanh")) return "Danh mục Tuyến đường nhanh / Cao tốc";
         if (lower.contains("loaiketcau")) return "Danh mục Loại kết cấu công trình";
+        if (lower.contains("loaicau") || lower.contains("kieucau")) return "Danh mục Loại cầu / Kiểu kết cấu cầu";
+        if (lower.contains("hamduongbo") || lower.contains("loaiham")) return "Danh mục Hầm đường bộ";
+        if (lower.contains("kctcauviahe") || lower.contains("viahe")) return "Danh mục Kết cấu vỉa hè";
+        if (lower.contains("ketcaumong") || lower.contains("mongduong")) return "Danh mục Kết cấu móng đường";
+        if (lower.contains("loainenduong") || lower.contains("nenduong")) return "Danh mục Loại nền đường";
+
+        // === Nhóm Báo hiệu & An toàn giao thông ===
+        if (lower.contains("sohieubienbao")) return "Danh mục Số hiệu biển báo (QCVN 41)";
+        if (lower.contains("loaibienbao")) return "Danh mục Loại biển báo đường bộ";
+        if (lower.contains("vachson")) return "Danh mục Vạch sơn kẻ đường";
+        if (lower.contains("raochan") || lower.contains("hotongiao")) return "Danh mục Hộ lan / Rào chắn";
+        if (lower.contains("denthietbi") || lower.contains("dentinhieu")) return "Danh mục Đèn tín hiệu giao thông";
+        if (lower.contains("gogiamtoc")) return "Danh mục Gờ giảm tốc";
+
+        // === Nhóm Đơn vị / Tổ chức ===
         if (lower.contains("donviquanly")) return "Danh mục Đơn vị quản lý đường bộ";
+        if (lower.contains("khuquanly") || lower.contains("khuqldb")) return "Danh mục Khu Quản lý đường bộ";
+        if (lower.contains("nhathaudo") || lower.contains("botduong")) return "Danh mục Nhà thầu / Đơn vị bảo trì";
+
+        // === Nhóm Kỹ thuật / Phụ trợ ===
+        if (lower.contains("dinhdangbotro")) return "Danh mục Định dạng bổ trợ";
+        if (lower.contains("donvido") || lower.contains("donvitinh")) return "Danh mục Đơn vị đo / Đơn vị tính";
+        if (lower.contains("trangthai") || lower.contains("tinhtrang")) return "Danh mục Trạng thái / Tình trạng";
+        if (lower.contains("hanhmucbaoduong") || lower.contains("hanmucbaotri")) return "Danh mục Hạng mục bảo trì";
+        if (lower.contains("congtrinhphutroi") || lower.contains("phutro")) return "Danh mục Công trình phụ trợ";
+        if (lower.contains("thoihan") || lower.contains("chuky")) return "Danh mục Thời hạn / Chu kỳ bảo trì";
+
         return fallback != null ? fallback : key;
     }
+
+    /**
+     * Ghi chú mô tả ngắn gọn cho từng nhóm danh mục.
+     */
+    private String mapCatalogDescription(String key) {
+        if (key == null) return "Danh mục chuẩn hóa hệ thống KCHT ĐB";
+        String lower = key.toLowerCase();
+
+        if (lower.contains("tinhthanhpho")) return "63 tỉnh thành phố trực thuộc TW theo GSO";
+        if (lower.contains("xaphuong")) return "Đơn vị hành chính cấp xã/phường/thị trấn";
+        if (lower.contains("quanhuyen")) return "Đơn vị hành chính cấp quận/huyện/thị xã";
+        if (lower.contains("capduong")) return "Cấp đường kỹ thuật theo TCVN 4054:2005";
+        if (lower.contains("loaimat")) return "Phân loại mặt đường bê tông, nhựa, cấp phối";
+        if (lower.contains("tuyenduongquocgia") || lower.contains("tuyenquoclo")) return "Hệ thống quốc lộ toàn quốc Việt Nam";
+        if (lower.contains("sohieubienbao")) return "Ký hiệu biển báo theo QCVN 41:2019/BGTVT";
+        if (lower.contains("loaiketcau")) return "Phân loại kết cấu công trình trên tuyến";
+        if (lower.contains("donviquanly")) return "Cục ĐBVN, Khu QLĐB, Sở GTVT, doanh nghiệp BOT";
+        if (lower.contains("tuyenduongnhanh")) return "Đường cao tốc và đường nhanh toàn quốc";
+
+        return "Danh mục chuẩn hóa hệ thống KCHT ĐB";
+    }
+
+    /**
+     * Phân nhóm danh mục tự động theo mã khóa.
+     * Trả về mảng [groupKey, groupName, icon].
+     */
+    private String[] resolveCatalogGroup(String key) {
+        if (key == null) return new String[]{"other", "Khác", "database"};
+        String lower = key.toLowerCase();
+
+        // Nhóm 1: Địa giới hành chính
+        if (lower.contains("tinhthanhpho") || lower.contains("xaphuong") || lower.contains("quanhuyen") ||
+            lower.contains("diaban") || lower.contains("diachinh") || lower.contains("vung")) {
+            return new String[]{"administrative", "Địa giới hành chính", "environment"};
+        }
+
+        // Nhóm 2: Hạ tầng & Tuyến đường
+        if (lower.contains("capduong") || lower.contains("loaimat") || lower.contains("tuyenduong") ||
+            lower.contains("tuyenquoclo") || lower.contains("loaiketcau") || lower.contains("loaicau") ||
+            lower.contains("hamduong") || lower.contains("loaiham") || lower.contains("kctcauviahe") ||
+            lower.contains("viahe") || lower.contains("ketcaumong") || lower.contains("nenduong") ||
+            lower.contains("loainenduong") || lower.contains("mongduong") || lower.contains("kieucau") ||
+            lower.contains("tuyenduongnhanh") || lower.contains("rmd_") || lower.contains("ketcau")) {
+            return new String[]{"infrastructure", "Hạ tầng & Tuyến đường", "road"};
+        }
+
+        // Nhóm 3: Báo hiệu & An toàn giao thông
+        if (lower.contains("sohieubienbao") || lower.contains("loaibienbao") || lower.contains("bienbao") ||
+            lower.contains("vachson") || lower.contains("raochan") || lower.contains("hotongiao") ||
+            lower.contains("denthietbi") || lower.contains("dentinhieu") || lower.contains("gogiamtoc") ||
+            lower.contains("sign") || lower.contains("atgt")) {
+            return new String[]{"traffic_safety", "Báo hiệu & An toàn GT", "safety"};
+        }
+
+        // Nhóm 4: Đơn vị / Tổ chức
+        if (lower.contains("donviquanly") || lower.contains("khuquanly") || lower.contains("khuqldb") ||
+            lower.contains("nhathaudo") || lower.contains("botduong") || lower.contains("donvi") ||
+            lower.contains("tochuc")) {
+            return new String[]{"organization", "Tổ chức & Đơn vị quản lý", "team"};
+        }
+
+        // Nhóm 5: Kỹ thuật / Phụ trợ
+        if (lower.contains("dinhdangbotro") || lower.contains("donvido") || lower.contains("donvitinh") ||
+            lower.contains("trangthai") || lower.contains("tinhtrang") || lower.contains("hanhmucbaoduong") ||
+            lower.contains("hanmucbaotri") || lower.contains("congtrinhphutroi") || lower.contains("phutro") ||
+            lower.contains("thoihan") || lower.contains("chuky")) {
+            return new String[]{"technical", "Kỹ thuật & Phụ trợ", "setting"};
+        }
+
+        return new String[]{"other", "Khác", "database"};
+    }
+
 }

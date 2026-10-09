@@ -7,7 +7,11 @@ export interface CatalogSummary {
   itemCount: number;
   sourceType: string;
   isEditable: boolean;
+  groupKey?: string;
+  groupName?: string;
+  icon?: string;
 }
+
 
 export interface ReferenceCatalogItem {
   catalogCode: string;
@@ -34,10 +38,16 @@ export const fetchAllCatalogs = async (): Promise<CatalogSummary[]> => {
 
 export const fetchCatalogItems = async (
   catalogCode: string,
-  params?: { page?: number; size?: number; keyword?: string; parentCode?: string }
+  params?: { page?: number; size?: number; keyword?: string; q?: string; parentCode?: string }
 ): Promise<PagedCatalogItems> => {
+  const queryParams = {
+    page: params?.page ?? 0,
+    size: params?.size ?? 20,
+    q: params?.q ?? params?.keyword ?? '',
+    parentCode: params?.parentCode,
+  };
   const response = await apiClient.get<PagedCatalogItems>(`/api/catalogs/${encodeURIComponent(catalogCode)}`, {
-    params,
+    params: queryParams,
   });
   return response.data;
 };

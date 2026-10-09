@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import vn.gov.drvn.kcht.dto.report.MaintenanceReportDto;
 import vn.gov.drvn.kcht.dto.report.RoadLengthReportDto;
 import vn.gov.drvn.kcht.dto.report.RoadSignBlackspotReportDto;
+import vn.gov.drvn.kcht.dto.report.IriRoughnessReportDto;
 import vn.gov.drvn.kcht.service.ReportService;
 
 import java.time.LocalDate;
@@ -115,6 +116,34 @@ public class ReportApiController {
 
         byte[] csvData = reportService.exportRoadSignBlackspotReportCsv(branch, route, category);
         String filename = "Thong_ke_bien_bao_diem_den_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .body(csvData);
+    }
+
+    @GetMapping("/iri-roughness")
+    @Operation(summary = "Báo cáo khảo sát độ gồ ghề mặt đường IRI và phân nhóm HDM-4",
+            description = "Tổng hợp số liệu quan trắc IRI 22,1 km đường bộ, phân loại theo tiêu chuẩn quốc tế HDM-4 và danh sách các đoạn xung yếu.")
+    public ResponseEntity<IriRoughnessReportDto> getIriRoughnessReport(
+            @Parameter(description = "Tên hoặc mã tuyến đường (VD: QL1, QL53)")
+            @RequestParam(required = false) String route,
+            @Parameter(description = "Mức độ đánh giá (very_poor, poor, fair, good)")
+            @RequestParam(required = false) String conditionGroup) {
+
+        return ResponseEntity.ok(reportService.getIriRoughnessReport(route, conditionGroup));
+    }
+
+    @GetMapping("/iri-roughness/export")
+    @Operation(summary = "Xuất dữ liệu khảo sát IRI ra tệp CSV (UTF-8 BOM)",
+            description = "Xuất toàn bộ bảng danh mục đoạn đo IRI và chỉ số độ gồ ghề ra CSV tương thích Microsoft Excel.")
+    public ResponseEntity<byte[]> exportIriRoughnessReport(
+            @RequestParam(required = false) String route,
+            @RequestParam(required = false) String conditionGroup) {
+
+        byte[] csvData = reportService.exportIriRoughnessReportCsv(route, conditionGroup);
+        String filename = "Bao_cao_khao_sat_do_go_ghe_IRI_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv";
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
