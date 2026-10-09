@@ -2,7 +2,7 @@
 # PRODUCTION ENVIRONMENT PROFILE CONFIGURATION (SPRING_PROFILES_ACTIVE=prod)
 # ==============================================================================
 server:
-  port: ${SERVER_PORT:8089}
+  port: ${PORT:${SERVER_PORT:8089}}
   shutdown: graceful
 
 spring:

@@ -20,7 +20,7 @@ export const setStoredToken = (token: string | null): void => {
 
 // Base Axios instance
 export const apiClient = axios.create({
-  baseURL: '',
+  baseURL: (import.meta.env.VITE_API_BASE_URL as string) || '',
   headers: {
     'Content-Type': 'application/json',
   },
