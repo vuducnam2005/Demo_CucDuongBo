@@ -12,7 +12,7 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:postgres}?currentSchema=public&reWriteBatchedInserts=true
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:postgres}?sslmode=require&currentSchema=public&reWriteBatchedInserts=true
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:}
     driver-class-name: org.postgresql.Driver
@@ -62,15 +62,16 @@ kcht:
       refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
     cookie:
       name: ${REFRESH_COOKIE_NAME:kcht_refresh_token}
-      secure: ${REFRESH_COOKIE_SECURE:false}
-      same-site: ${REFRESH_COOKIE_SAME_SITE:Lax}
+      secure: ${REFRESH_COOKIE_SECURE:true}
+      same-site: ${REFRESH_COOKIE_SAME_SITE:None}
       domain: ${REFRESH_COOKIE_DOMAIN:}
-      path: ${REFRESH_COOKIE_PATH:/api/auth}
+      path: ${REFRESH_COOKIE_PATH:/}
     rate-limit:
       login-max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
       login-lockout-duration-ms: ${LOGIN_LOCKOUT_MS:900000}
   storage:
     type: ${STORAGE_TYPE:local}
+    local-path: ${STORAGE_LOCAL_PATH:/tmp/data/storage}
     endpoint: ${MINIO_ENDPOINT:http://minio:9000}
     access-key: ${MINIO_ROOT_USER:minioadmin}
     secret-key: ${MINIO_ROOT_PASSWORD:minioadmin}

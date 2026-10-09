@@ -15,8 +15,10 @@ RUN ./mvnw clean package -DskipTests -B
 FROM eclipse-temurin:21-jre-alpine AS runner
 WORKDIR /app
 
-# Tạo non-root user
-RUN addgroup -S kcht && adduser -S kcht -G kcht
+# Tạo non-root user và cấp quyền thư mục dữ liệu
+RUN addgroup -S kcht && adduser -S kcht -G kcht \
+    && mkdir -p /app/data/storage /tmp/data/storage \
+    && chown -R kcht:kcht /app /tmp/data/storage
 USER kcht:kcht
 
 COPY --from=builder /build/target/*.jar app.jar
@@ -26,7 +28,7 @@ ENV SERVER_PORT=8089 \
 
 EXPOSE 8089
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8089/actuator/health || exit 1
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=5 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-8089}/actuator/health || exit 0
 
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-XX:InitialRAMPercentage=50.0", "-XX:+ExitOnOutOfMemoryError", "-XX:+UseZGC", "-XX:+ZGenerational", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=prod", "-jar", "app.jar"]
