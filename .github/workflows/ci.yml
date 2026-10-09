@@ -25,7 +25,7 @@ jobs:
         run: chmod +x mvnw
 
       - name: Run Backend Tests
-        run: ./mvnw test -B -Dtest="*Test,!*IntegrationTest,!AuthCookieSecurityTest*"
+        run: ./mvnw test -B
 
       - name: Build Spring Boot Application
         run: ./mvnw package -B -DskipTests
