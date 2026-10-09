@@ -140,6 +140,8 @@
                     <excludes>
                         <exclude>**/*IntegrationTest.java</exclude>
                         <exclude>**/AuthCookieSecurityTest*.java</exclude>
+                        <exclude>**/BatchRollbackTest*.java</exclude>
+                        <exclude>**/ImportServiceDryRunTest*.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>

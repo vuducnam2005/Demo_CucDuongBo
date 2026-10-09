@@ -1,6 +1,7 @@
 package vn.gov.drvn.kcht.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.File;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,10 @@ class ImportServiceDryRunTest {
     @Test
     @DisplayName("Nghiệm thu: Chạy Dry-Run với tệp nhỏ 'assets/duonggom.json' giới hạn 5 bản ghi")
     void testDryRunSingleFile() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                new File("C:\\Data\\kcht_json_2026-10-05\\assets\\duonggom.json").exists(),
+                "Thư mục dữ liệu cục bộ C:\\Data không tồn tại (CI/CD bỏ qua)");
+
         ImportService.ImportSummary summary = importService.importSingleFile("assets/duonggom.json", true, 5);
 
         assertNotNull(summary);

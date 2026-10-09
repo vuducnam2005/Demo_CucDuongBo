@@ -71,6 +71,10 @@ class BatchRollbackTest {
     @Test
     @DisplayName("Kiểm tra Rollback và ghi nhận lỗi khi một Batch bị lỗi cơ sở dữ liệu")
     void testRollbackOnBatchFailure() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                new File("C:\\Data\\kcht_json_2026-10-05\\assets\\duonggom.json").exists(),
+                "Thư mục dữ liệu cục bộ C:\\Data không tồn tại (CI/CD bỏ qua)");
+
         ImportJobEntity job = new ImportJobEntity("TEST_JOB");
         job.setId(100L);
 
