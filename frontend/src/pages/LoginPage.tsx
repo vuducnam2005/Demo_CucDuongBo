@@ -12,13 +12,13 @@ import {
 import {
   UserOutlined,
   LockOutlined,
-  SafetyCertificateOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LoginParams } from '../services/authApi';
 import { getApiErrorMessage, getHttpStatus } from '../services/api';
+import { VroadBrand } from '../components/brand/VroadBrand';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -81,13 +81,13 @@ export const LoginPage: React.FC = () => {
               marginBottom: 8,
             }}
           >
-            <SafetyCertificateOutlined style={{ fontSize: 36, color: '#4096ff' }} />
+            <VroadBrand inverse />
           </div>
           <Title level={3} style={{ color: '#ffffff', margin: 0, fontWeight: 700 }}>
-            HỆ THỐNG QUẢN LÝ KCHT ĐƯỜNG BỘ
+            QUẢN LÝ HẠ TẦNG ĐƯỜNG BỘ
           </Title>
           <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 14 }}>
-            Cục Đường bộ Việt Nam - Bộ Giao thông Vận tải
+            Bản demo độc lập — không phải trang đăng nhập của Cục Đường bộ Việt Nam
           </Text>
         </Space>
       </div>
@@ -106,7 +106,7 @@ export const LoginPage: React.FC = () => {
             Đăng nhập hệ thống
           </Title>
           <Text type="secondary" style={{ fontSize: 13 }}>
-            Sử dụng tài khoản công vụ được cấp để truy cập dữ liệu
+            Sử dụng tài khoản demo do quản trị viên cục bộ cấp
           </Text>
         </div>
 
@@ -129,7 +129,7 @@ export const LoginPage: React.FC = () => {
           >
             <Input
               prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
-              placeholder="Ví dụ: admin hoặc mã công vụ"
+              placeholder="Ví dụ: admin hoặc manager_demo"
               size="large"
               autoFocus
             />
@@ -168,8 +168,8 @@ export const LoginPage: React.FC = () => {
 
       <div style={{ marginTop: 24, textAlign: 'center', maxWidth: 440 }}>
         <Paragraph style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: 12, margin: 0 }}>
-          Hệ thống chuyên dùng nội bộ ngành Đường bộ. Mọi hoạt động truy cập và thao tác dữ liệu đều
-          được ghi vết vào Nhật ký Kiểm toán (Audit Log) theo quy định an toàn thông tin quốc gia.
+          Đây là môi trường thử nghiệm độc lập. Dữ liệu nguồn chưa được duyệt QC và không được
+          coi là số liệu công bố chính thức.
         </Paragraph>
       </div>
     </div>

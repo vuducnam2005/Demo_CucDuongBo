@@ -1,6 +1,8 @@
 import React from 'react';
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { QueryClient } from '@tanstack/react-query';
+import * as authApi from '../services/authApi';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 
 // Helper component to test useAuth hooks
@@ -24,7 +26,19 @@ const TestAuthConsumer: React.FC<{
 
 describe('AuthContext RBAC & Permissions Unit Tests', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     localStorage.clear();
+  });
+
+  it('clears account-specific query data when the session expires', () => {
+    vi.spyOn(authApi, 'getMeApi').mockImplementation(() => new Promise(() => {}));
+    const client = new QueryClient();
+    client.setQueryData(['private-region-records'], ['previous-account-only']);
+    render(<AuthProvider onSessionChange={() => client.clear()}><TestAuthConsumer /></AuthProvider>);
+    expect(client.getQueryData(['private-region-records'])).toEqual(['previous-account-only']);
+    fireEvent(window, new Event('auth:expired'));
+    expect(client.getQueryData(['private-region-records'])).toBeUndefined();
+    expect(screen.getByTestId('auth-status')).toHaveTextContent('GUEST');
   });
 
   it('initializes with unauthenticated guest state when storage is empty', async () => {

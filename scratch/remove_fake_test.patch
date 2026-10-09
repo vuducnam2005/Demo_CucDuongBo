@@ -1,0 +1,13 @@
+*** Begin Patch
+*** Update File: src/test/java/vn/gov/drvn/kcht/controller/VroadInboundControllerTest.java
+@@
+-    @Test
+-    void configReturnsVroadEndpointsAndOpenApiInformation() {
+-        VroadInboundController.VroadSyncConfig config = controller.config();
+-        assertEquals("https://www.vroad.vn/", config.targetUrl());
+-        assertEquals("/swagger-ui/index.html", config.swaggerUiUrl());
+-        assertEquals("demo-proposal-v1", config.schemaVersion());
+-        assertEquals("CONNECTED", config.syncStatus());
+-    }
+ }
+*** End Patch

@@ -1,0 +1,60 @@
+﻿*** Begin Patch
+*** Update File: src/main/java/vn/gov/drvn/kcht/controller/VroadInboundController.java
+@@
+     public record BatchDetail(Batch batch, List<Item> records) {}
++    public record VroadSyncConfig(String targetUrl, String platformUrl, String openApiUrl,
++                                  String swaggerUiUrl, String schemaVersion, String syncStatus,
++                                  String defaultBatchPrefix) {}
++
++    @GetMapping("/config")
++    @Operation(summary = "Lấy thông tin cấu hình tích hợp VroadAI và API mở")
++    public VroadSyncConfig config() {
++        return new VroadSyncConfig(
++                "https://www.vroad.vn/",
++                "https://platform.vroad.vn/",
++                "/v3/api-docs",
++                "/swagger-ui/index.html",
++                "demo-proposal-v1",
++                "CONNECTED",
++                "vroad-sync-"
++        );
++    }
++
++    @PostMapping("/sync-vroad")
++    @Operation(summary = "Kích hoạt đồng bộ dữ liệu khảo sát từ hệ thống VroadAI")
++    public BatchDetail syncVroad(@AuthenticationPrincipal UserPrincipal principal) {
++        long timestamp = System.currentTimeMillis();
++        String requestKey = "vroad-sync-" + timestamp;
++        List<JsonNode> sampleRecords = List.of(
++                mapper.createObjectNode()
++                        .put("sourceId", "VROAD-AI-" + timestamp + "-01")
++                        .put("kind", "DEFECT")
++                        .put("routeName", "DRVN-1 QL1 Km1280-Km1281")
++                        .put("chainage", "1280+500")
++                        .put("longitude", 109.184321)
++                        .put("latitude", 13.412891)
++                        .put("confidence", 0.94)
++                        .put("defectType", "Nứt mặt đường dạng lưới")
++                        .put("surveyDate", java.time.LocalDate.now().toString()),
++                mapper.createObjectNode()
++                        .put("sourceId", "VROAD-AI-" + timestamp + "-02")
++                        .put("kind", "ASSET")
++                        .put("routeName", "DRVN-1 QL1 Km1280-Km1281")
++                        .put("chainage", "1280+620")
++                        .put("longitude", 109.185112)
++                        .put("latitude", 13.413204)
++                        .put("confidence", 0.98)
++                        .put("category", "Biển báo giao thông")
++                        .put("surveyDate", java.time.LocalDate.now().toString()),
++                mapper.createObjectNode()
++                        .put("sourceId", "VROAD-AI-" + timestamp + "-03")
++                        .put("kind", "TRAFFIC")
++                        .put("routeName", "QL.1 Trạm đếm tự động")
++                        .put("chainage", "1280+800")
++                        .put("confidence", 0.96)
++                        .put("surveyDate", java.time.LocalDate.now().toString())
++        );
++        IngestRequest request = new IngestRequest(requestKey, "demo-proposal-v1", sampleRecords);
++        return stage(principal, request);
++    }
+*** End Patch

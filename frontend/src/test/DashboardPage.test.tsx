@@ -6,6 +6,9 @@ import { ConfigProvider } from 'antd';
 import { AuthProvider } from '../context/AuthContext';
 import { DashboardPage } from '../pages/DashboardPage';
 import * as api from '../services/api';
+import * as vroadApi from '../services/vroadApi';
+
+vi.mock('../services/vroadApi', () => ({ fetchSurveyOverview: vi.fn() }));
 
 vi.mock('../services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/api')>();
@@ -161,6 +164,11 @@ describe('DashboardPage Unit & Integration Tests', () => {
     vi.mocked(api.fetchDashboardRoadSigns).mockResolvedValue(mockRoadSigns);
     vi.mocked(api.fetchDashboardRoadLengths).mockResolvedValue(mockRoadLengths);
     vi.mocked(api.fetchDashboardRecentAssets).mockResolvedValue(mockRecentAssets);
+    vi.mocked(vroadApi.fetchSurveyOverview).mockResolvedValue({
+      assets: 2614, defects: 3404, iriSegments: 221, resolvedCases: 3,
+      defectTypes: [{ label: 'Nứt vỡ', count: 663 }],
+      assetCategories: [{ label: 'Mặt đường', count: 1634 }],
+    });
   });
 
   const renderDashboard = () => {
@@ -177,20 +185,18 @@ describe('DashboardPage Unit & Integration Tests', () => {
     );
   };
 
-  it('renders welcome banner and server-side aggregation notice', async () => {
+  it('renders the live survey charts without hardcoded national totals', async () => {
     renderDashboard();
 
     expect(screen.getByText(/Bảng Điều hành & Giám sát KCHT Đường bộ/i)).toBeInTheDocument();
     expect(screen.getByText(/Quản trị viên Hệ thống/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Hệ thống Tổng hợp Server-side Aggregates/i)
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/không tính toán hàng trăm nghìn dòng trên trình duyệt/i)
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/1,1 triệu bản ghi/)).not.toBeInTheDocument();
+    expect(await screen.findByRole('img', { name: 'Biểu đồ Loại hư hỏng' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Biểu đồ Nhóm tài sản' })).toBeInTheDocument();
+    expect(screen.getByText('Nứt vỡ')).toBeInTheDocument();
   });
 
-  it('renders all 6 executive KPI cards with source, filter, and detail links', async () => {
+  it('renders all 6 executive KPI cards without technical source notes', async () => {
     renderDashboard();
 
     // 1. Total Assets Card
@@ -219,9 +225,8 @@ describe('DashboardPage Unit & Integration Tests', () => {
     expect(screen.getByText('Hồ sơ Kỹ thuật (S3)')).toBeInTheDocument();
     expect(screen.getByText('309')).toBeInTheDocument();
 
-    // Check that source dataset tags are rendered
-    expect(screen.getAllByText(/Nguồn: /i).length).toBeGreaterThanOrEqual(6);
-    expect(screen.getAllByText(/Lọc: /i).length).toBeGreaterThanOrEqual(6);
+    expect(screen.queryByText(/^Nguồn:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Lọc:/i)).not.toBeInTheDocument();
   });
 
   it('renders branch distribution table with aggregated metrics', async () => {

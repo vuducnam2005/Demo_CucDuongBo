@@ -1,0 +1,6 @@
+*** Begin Patch
+*** Update File: frontend/src/pages/VroadInboundPage.tsx
+@@
+-          Tiếp nhận dữ liệu khảo sát số, hư hỏng và quan sát tự động từ nền tảng VroadAI (https://www.vroad.vn/)
++          Bản demo chỉ lưu lô dữ liệu nhận thủ công; chưa kết nối với VroadAI.
+*** End Patch

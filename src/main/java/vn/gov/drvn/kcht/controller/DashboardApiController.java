@@ -40,13 +40,13 @@ public class DashboardApiController {
     }
 
     @GetMapping("/stats/road-signs")
-    @Operation(summary = "Thống kê chuyên đề Biển báo đường bộ", description = "Tổng số biển báo 222,112 biển, phân bổ theo Khu QLĐB và nhóm phân loại QCVN 41:2019/BGTVT")
+    @Operation(summary = "Thống kê chuyên đề Biển báo đường bộ", description = "Tổng số bản ghi biển báo có trong database và phân bổ theo mã đơn vị")
     public ResponseEntity<DashboardRoadSignStatDto> getRoadSignStats() {
         return ResponseEntity.ok(dashboardService.getRoadSignStats());
     }
 
     @GetMapping("/stats/road-lengths")
-    @Operation(summary = "Thống kê chuyên đề Chiều dài Quốc lộ", description = "Tổng chiều dài 27,469 km của 168 tuyến quốc lộ, danh sách tuyến dài nhất và phân bố cự ly")
+    @Operation(summary = "Thống kê chuyên đề Chiều dài Quốc lộ", description = "Chiều dài và số tuyến tính từ bản ghi nguồn, danh sách tuyến dài nhất và phân bố cự ly")
     public ResponseEntity<DashboardRoadLengthStatDto> getRoadLengthStats() {
         return ResponseEntity.ok(dashboardService.getRoadLengthStats());
     }

@@ -22,6 +22,7 @@ import {
   CompassOutlined,
   BarChartOutlined,
   FolderOpenOutlined,
+  CloudUploadOutlined,
   AppstoreOutlined,
   SettingOutlined,
   TeamOutlined,
@@ -32,36 +33,47 @@ import {
   UserOutlined,
   LogoutOutlined,
   IdcardOutlined,
-  SafetyCertificateOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ErrorBoundary } from '../components/common/ErrorBoundary';
+import { VroadBrand } from '../components/brand/VroadBrand';
 
 const { Header, Content, Footer, Sider } = Layout;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const routeBreadcrumbMap: Record<string, string[]> = {
   '/dashboard': ['Bảng điều hành'],
   '/assets': ['Danh mục tài sản'],
   '/map': ['Bản đồ số WebGIS'],
+  '/map/assets': ['Bản đồ tài sản'],
+  '/cases': ['Hồ sơ đã xử lý'],
   '/reports': ['Báo cáo & Thống kê'],
   '/documents': ['Hồ sơ & Tài liệu'],
   '/catalogs': ['Danh mục chuẩn'],
+  '/admin/operations': ['Quản trị hệ thống', 'Vận hành hệ thống'],
   '/admin/users': ['Quản trị hệ thống', 'Quản lý người dùng'],
   '/admin/audit-logs': ['Quản trị hệ thống', 'Nhật ký kiểm toán'],
+  '/admin/vroad-inbound': ['Quản trị hệ thống', 'Tích hợp VroadAI'],
+  '/admin/routes': ['Quản trị hệ thống', 'Phân tuyến tài khoản'],
+  '/admin/traffic-import': ['Quản trị hệ thống', 'Nhập quan sát giao thông'],
 };
 
 const menuRouteKeys = [
   '/dashboard',
   '/assets',
   '/map',
+  '/map/assets',
+  '/cases',
   '/reports',
   '/documents',
   '/catalogs',
+  '/admin/operations',
   '/admin/users',
   '/admin/audit-logs',
+  '/admin/vroad-inbound',
+  '/admin/traffic-import',
 ];
 
 export const MainLayout: React.FC = () => {
@@ -97,6 +109,18 @@ export const MainLayout: React.FC = () => {
 
   // Dynamic hierarchical menu items based on user role
   const menuItems = useMemo(() => {
+    if (user && !user.branchId && !hasRole('ROLE_ADMIN')) {
+      return [{ key: '/dashboard', icon: <DashboardOutlined />, label: 'Chưa gán đơn vị' }];
+    }
+    if (user?.branchId && !hasRole('ROLE_ADMIN')) {
+      return [
+        { key: '/dashboard', icon: <DashboardOutlined />, label: 'Bảng điều hành đơn vị' },
+        { key: '/map', icon: <CompassOutlined />, label: 'Bản đồ hư hỏng' },
+        { key: '/cases', icon: <FolderOpenOutlined />, label: 'Hồ sơ đã xử lý' },
+        { key: '/documents', icon: <FolderOpenOutlined />, label: 'Hồ sơ tài liệu' },
+        { key: '/traffic', icon: <BarChartOutlined />, label: 'Lưu lượng xe' },
+      ];
+    }
     const items: MenuProps['items'] = [
       {
         key: '/dashboard',
@@ -111,7 +135,17 @@ export const MainLayout: React.FC = () => {
       {
         key: '/map',
         icon: <CompassOutlined />,
-        label: 'Bản đồ số WebGIS',
+        label: 'Bản đồ hư hỏng VroadAI',
+      },
+      {
+        key: '/cases',
+        icon: <FolderOpenOutlined />,
+        label: 'Hồ sơ đã xử lý',
+      },
+      {
+        key: '/traffic',
+        icon: <BarChartOutlined />,
+        label: 'Lưu lượng xe',
       },
       {
         key: '/reports',
@@ -138,21 +172,41 @@ export const MainLayout: React.FC = () => {
         label: 'Quản trị hệ thống',
         children: [
           {
+            key: '/admin/operations',
+            icon: <DashboardOutlined />,
+            label: 'Vận hành hệ thống',
+          },
+          {
             key: '/admin/users',
             icon: <TeamOutlined />,
             label: 'Quản lý người dùng',
+          },
+          {
+            key: '/admin/routes',
+            icon: <CompassOutlined />,
+            label: 'Phân tuyến tài khoản',
           },
           {
             key: '/admin/audit-logs',
             icon: <AuditOutlined />,
             label: 'Nhật ký kiểm toán',
           },
+          {
+            key: '/admin/vroad-inbound',
+            icon: <CloudUploadOutlined />,
+            label: 'Tích hợp VroadAI',
+          },
+          {
+            key: '/admin/traffic-import',
+            icon: <BarChartOutlined />,
+            label: 'Nhập số liệu giao thông',
+          },
         ],
       });
     }
 
     return items;
-  }, [hasRole]);
+  }, [hasRole, user]);
 
   // Calculate dynamic breadcrumb items
   const breadcrumbItems = useMemo(() => {
@@ -226,19 +280,7 @@ export const MainLayout: React.FC = () => {
       >
         {/* Brand Header */}
         <div className="kcht-logo-wrapper">
-          <Space direction="horizontal" align="center" size={10}>
-            <SafetyCertificateOutlined style={{ fontSize: 26, color: '#4096ff' }} />
-            {!collapsed && (
-              <div>
-                <Title level={5} style={{ color: '#fff', margin: 0, fontSize: 14, fontWeight: 700, letterSpacing: 0.5 }}>
-                  KCHT ĐƯỜNG BỘ
-                </Title>
-                <div style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: 10, lineHeight: 1 }}>
-                  CỤC ĐƯỜNG BỘ VIỆT NAM
-                </div>
-              </div>
-            )}
-          </Space>
+          <VroadBrand compact={collapsed} inverse />
         </div>
 
         {/* Navigation Menu */}
@@ -274,7 +316,7 @@ export const MainLayout: React.FC = () => {
               />
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span className="kcht-header-system-title" style={{ fontSize: 15, fontWeight: 600, color: '#141414' }}>
-                  Hệ thống Quản lý Kết cấu Hạ tầng Giao thông Đường bộ
+                  Demo quản lý kết cấu hạ tầng đường bộ
                 </span>
                 <Breadcrumb items={breadcrumbItems} style={{ fontSize: 12, lineHeight: 1 }} />
               </div>
@@ -338,10 +380,10 @@ export const MainLayout: React.FC = () => {
         {/* Standard Government Footer */}
         <Footer style={{ textAlign: 'center', fontSize: 12, color: '#8c8c8c', background: '#f0f2f5' }}>
           <div>
-            © 2026 <strong>Cục Đường bộ Việt Nam</strong> - Bộ Giao thông Vận tải. Hệ thống Quản trị & Khai thác KCHT Đường bộ Quốc gia.
+            Demo độc lập để đánh giá nghiệp vụ — không phải cổng chính thức của Cục Đường bộ Việt Nam.
           </div>
           <div style={{ marginTop: 2, fontSize: 11 }}>
-            Phiên bản 1.0.0 (Giai đoạn 6 - Frontend Shell & Giao diện chung) | Giám sát bởi Trung tâm CNTT Đường bộ
+            Bản thử nghiệm nội bộ; dữ liệu nguồn và dữ liệu chưa duyệt phải được phân biệt.
           </div>
         </Footer>
       </Layout>
@@ -352,7 +394,7 @@ export const MainLayout: React.FC = () => {
         title={
           <Space>
             <InfoCircleOutlined style={{ color: '#1677ff' }} />
-            <span>Thông tin tài khoản công vụ</span>
+            <span>Thông tin tài khoản demo</span>
           </Space>
         }
         onCancel={() => setProfileModalVisible(false)}
@@ -371,8 +413,8 @@ export const MainLayout: React.FC = () => {
           <Descriptions.Item label="Vai trò hệ thống">
             <Tag color={roleDisplay.color}>{roleDisplay.label} ({user?.role})</Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="Cơ quan / Đơn vị">{user?.organizationId || 'Cục Đường bộ Việt Nam'}</Descriptions.Item>
-          <Descriptions.Item label="Chi nhánh">{user?.branchId || 'Trụ sở chính (Hà Nội)'}</Descriptions.Item>
+          <Descriptions.Item label="Mã tổ chức demo">{user?.organizationId || 'Chưa gán'}</Descriptions.Item>
+          <Descriptions.Item label="Chi nhánh">{user?.branchId || (hasRole('ROLE_ADMIN') ? 'Cục — toàn quốc' : 'Chưa gán đơn vị')}</Descriptions.Item>
           <Descriptions.Item label="Danh sách quyền được cấp">
             <div style={{ maxHeight: 150, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {user?.permissions && user.permissions.length > 0 ? (

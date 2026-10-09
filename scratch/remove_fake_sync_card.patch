@@ -1,0 +1,86 @@
+*** Begin Patch
+*** Update File: frontend/src/pages/VroadInboundPage.tsx
+@@
+-      <Card
+-        title={
+-          <Space>
+-            <CloudSyncOutlined style={{ color: '#1677ff' }} />
+-            <span>Kênh Kết nối & Đồng bộ Nguồn VroadAI (vroad.vn)</span>
+-          </Space>
+-        }
+-      >
+-        <Row gutter={[24, 24]}>
+-          <Col xs={24} lg={14}>
+-            <Descriptions bordered size="small" column={1}>
+-              <Descriptions.Item label="Nguồn dữ liệu tham chiếu">
+-                <Space>
+-                  <Text strong>{configQuery.data?.targetUrl || 'https://www.vroad.vn/'}</Text>
+-                  <Tag color="green" icon={<CheckCircleOutlined />}>Đã cấu hình</Tag>
+-                </Space>
+-              </Descriptions.Item>
+-              <Descriptions.Item label="Cổng dữ liệu khảo sát (Platform)">
+-                <Text>{configQuery.data?.platformUrl || 'https://platform.vroad.vn/'}</Text>
+-              </Descriptions.Item>
+-              <Descriptions.Item label="Giao thức tiếp nhận">
+-                <Text code>REST API JSON (UTF-8) / Webhook tự động</Text>
+-              </Descriptions.Item>
+-              <Descriptions.Item label="Phiên bản chuẩn trao đổi">
+-                <Tag color="blue">{configQuery.data?.schemaVersion || 'demo-proposal-v1'}</Tag>
+-              </Descriptions.Item>
+-            </Descriptions>
+-
+-            <div style={{ marginTop: 16 }}>
+-              <Button
+-                type="primary"
+-                icon={<CloudDownloadOutlined />}
+-                loading={syncMutation.isPending}
+-                onClick={() => syncMutation.mutate()}
+-              >
+-                Kích hoạt Đồng bộ từ VroadAI
+-              </Button>
+-            </div>
+-          </Col>
+-
+-          <Col xs={24} lg={10}>
+-            <Card
+-              size="small"
+-              title={
+-                <Space>
+-                  <ApiOutlined style={{ color: '#52c41a' }} />
+-                  <span>Cổng API Mở (OpenAPI / Swagger)</span>
+-                </Space>
+-              }
+-              style={{ background: '#fafafa' }}
+-            >
+-              <Paragraph style={{ fontSize: 13, color: '#595959' }}>
+-                Hệ thống cung cấp đặc tả giao diện lập trình ứng dụng mở (OpenAPI Specification)
+-                để các đối tác kỹ thuật và nền tảng VroadAI tích hợp trực tiếp:
+-              </Paragraph>
+-              <Space direction="vertical" style={{ width: '100%' }}>
+-                <Button
+-                  block
+-                  icon={<LinkOutlined />}
+-                  href="/swagger-ui/index.html"
+-                  target="_blank"
+-                  rel="noopener noreferrer"
+-                >
+-                  Tài liệu tương tác Swagger UI
+-                </Button>
+-                <Button
+-                  block
+-                  icon={<FileTextOutlined />}
+-                  href="/v3/api-docs"
+-                  target="_blank"
+-                  rel="noopener noreferrer"
+-                >
+-                  Đặc tả OpenAPI Schema JSON
+-                </Button>
+-              </Space>
+-            </Card>
+-          </Col>
+-        </Row>
+-      </Card>
+-
+-      {/* Manual JSON Staging Card */}
+       <Card
+*** End Patch

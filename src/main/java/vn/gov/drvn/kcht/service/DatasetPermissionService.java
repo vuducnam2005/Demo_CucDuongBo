@@ -43,6 +43,13 @@ public class DatasetPermissionService {
      * @throws AccessDeniedException nếu vai trò không đủ quyền
      */
     public void checkDatasetAccess(String datasetKey, String userRole) {
+        Authentication current = SecurityContextHolder.getContext().getAuthentication();
+        if (current != null && current.isAuthenticated() && current.getPrincipal() instanceof UserPrincipal) {
+            userRole = current.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .filter(authority -> authority.startsWith("ROLE_"))
+                    .findFirst().orElse(ROLE_VIEWER);
+        }
         if (userRole == null || userRole.isBlank()) {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
@@ -118,7 +125,7 @@ public class DatasetPermissionService {
         }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (normalizedRole == null && auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof UserPrincipal) {
             for (GrantedAuthority authority : auth.getAuthorities()) {
                 String authStr = authority.getAuthority();
                 if (authStr.startsWith("ROLE_")) {

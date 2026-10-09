@@ -500,7 +500,7 @@ test.describe('KCHT ĐB - Bộ kiểm thử E2E Toàn diện (Playwright)', () =
       }));
     });
 
-    await page.goto('/map');
+    await page.goto('/map/assets');
 
     await expect(page.getByRole('heading', { name: /Bản đồ Số WebGIS/i })).toBeVisible();
     await expect(page.locator('.ol-viewport')).toBeAttached();

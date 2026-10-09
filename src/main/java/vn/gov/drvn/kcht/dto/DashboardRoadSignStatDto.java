@@ -9,7 +9,7 @@ public class DashboardRoadSignStatDto {
     private List<BranchSignCountDto> byBranch;
     private List<SignCategoryDto> byShape;
     private String sourceDataset = "tbl_road_sign";
-    private String filter = "Toàn quốc (Theo QCVN 41:2019/BGTVT)";
+    private String filter = "Bản ghi nguồn; chưa xác minh phân loại theo QCVN";
     private OffsetDateTime lastUpdated;
 
     public DashboardRoadSignStatDto() {}

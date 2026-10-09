@@ -44,12 +44,12 @@ public class DashboardService {
 
         Map<String, Object> regMap = jdbcClient.sql(regSql).query().singleRow();
 
-        int totalDatasets = ((Number) regMap.getOrDefault("total_datasets", 658)).intValue();
-        int physicalDatasets = ((Number) regMap.getOrDefault("physical_datasets", 57)).intValue();
-        int moduleDatasets = ((Number) regMap.getOrDefault("module_datasets", 601)).intValue();
-        long totalAssets = ((Number) regMap.getOrDefault("total_assets", 830836L)).longValue();
-        long totalBridges = ((Number) regMap.getOrDefault("total_bridges", 11631L)).longValue();
-        long totalRoadSigns = ((Number) regMap.getOrDefault("total_road_signs", 222112L)).longValue();
+        int totalDatasets = ((Number) regMap.get("total_datasets")).intValue();
+        int physicalDatasets = ((Number) regMap.get("physical_datasets")).intValue();
+        int moduleDatasets = ((Number) regMap.get("module_datasets")).intValue();
+        long totalAssets = ((Number) regMap.get("total_assets")).longValue();
+        long totalBridges = ((Number) regMap.get("total_bridges")).longValue();
+        long totalRoadSigns = ((Number) regMap.get("total_road_signs")).longValue();
 
         // 2. Thống kê chiều dài quốc lộ từ view_dashboard_national_road_stats
         String roadSql = """
@@ -60,8 +60,8 @@ public class DashboardService {
         """;
 
         Map<String, Object> roadMap = jdbcClient.sql(roadSql).query().singleRow();
-        int totalRoutes = ((Number) roadMap.getOrDefault("total_routes", 168)).intValue();
-        double totalLength = ((Number) roadMap.getOrDefault("total_length", 27469.26)).doubleValue();
+        int totalRoutes = ((Number) roadMap.get("total_routes")).intValue();
+        double totalLength = ((Number) roadMap.get("total_length")).doubleValue();
 
         // 3. Thống kê tài liệu hồ sơ
         String docSql = "SELECT COUNT(*) FROM document_metadata;";
@@ -155,12 +155,13 @@ public class DashboardService {
             LIMIT 8;
         """;
 
-        long totalRoadSigns = 222112L;
+        long totalRoadSigns = jdbcClient.sql("SELECT COUNT(*) FROM raw_dataset_record WHERE dataset_key = 'tbl_road_sign'")
+            .query(Long.class).single();
         List<DashboardRoadSignStatDto.BranchSignCountDto> byBranch = jdbcClient.sql(branchSql)
             .query((rs, rowNum) -> {
                 String branchId = rs.getString("branch_id");
                 long count = rs.getLong("road_sign_count");
-                double pct = Math.round((double) count * 1000.0 / totalRoadSigns) / 10.0;
+                double pct = totalRoadSigns == 0 ? 0 : Math.round((double) count * 1000.0 / totalRoadSigns) / 10.0;
                 return new DashboardRoadSignStatDto.BranchSignCountDto(
                     branchId,
                     resolveBranchName(branchId),
@@ -171,13 +172,7 @@ public class DashboardService {
             .list();
 
         // 2. Phân loại nhóm biển báo theo QCVN 41:2019/BGTVT
-        List<DashboardRoadSignStatDto.SignCategoryDto> byShape = List.of(
-            new DashboardRoadSignStatDto.SignCategoryDto("Biển báo cấm (P - Nhóm 1)", 68540L),
-            new DashboardRoadSignStatDto.SignCategoryDto("Biển báo nguy hiểm và cảnh báo (W - Nhóm 2)", 62140L),
-            new DashboardRoadSignStatDto.SignCategoryDto("Biển hiệu lệnh (R - Nhóm 3)", 41250L),
-            new DashboardRoadSignStatDto.SignCategoryDto("Biển chỉ dẫn (I - Nhóm 4)", 38680L),
-            new DashboardRoadSignStatDto.SignCategoryDto("Biển phụ & Biển viết bằng chữ (S - Nhóm 5)", 11502L)
-        );
+        List<DashboardRoadSignStatDto.SignCategoryDto> byShape = List.of();
 
         return new DashboardRoadSignStatDto(
             totalRoadSigns,

@@ -252,11 +252,13 @@ public class DocumentQueryService {
     public record DocumentFileDownload(String fileName, String mimeType, byte[] content) {}
 
     /**
-     * Tải nội dung tệp nhị phân tài liệu từ storage hoặc cung cấp bản sao lưu placeholder hợp lệ.
+     * Chỉ tải tệp nhị phân đã thực sự lưu trữ cục bộ.
      */
     public DocumentFileDownload downloadFileContent(String idOrFileEntryId) {
         DocumentItemDto doc = getDocumentById(idOrFileEntryId);
-        String objectKey = doc.getFileEntryId() != null ? doc.getFileEntryId() : doc.getId();
+        var metadata = documentMetadataRepository.findByFileEntryIdAndIsDeletedFalse(doc.getFileEntryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Tệp nguồn chưa được lưu trong demo"));
+        String objectKey = metadata.getLocalPath();
 
         // Thử tải từ Object Storage
         Optional<InputStream> isOpt = storageService.downloadFile(objectKey);
@@ -269,34 +271,7 @@ public class DocumentQueryService {
             }
         }
 
-        // Tạo nội dung placeholder hợp lệ nếu file chưa đồng bộ nhị phân từ nguồn
-        String placeholderText = String.format("""
-            ================================================================================
-            CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
-            Độc lập - Tự do - Hạnh phúc
-            --------------------------------------------------------------------------------
-            HỒ SƠ TÀI LIỆU KẾT CẤU HẠ TẦNG GIAO THÔNG ĐƯỜNG BỘ
-            Cục Đường bộ Việt Nam
-
-            Mã định danh tài liệu: %s
-            Mã tệp hệ thống: %s
-            Tên hồ sơ: %s
-            Đơn vị quản lý: %s
-            Công trình liên kết: %s
-            Người cập nhật: %s
-            Thời gian tạo: %s
-
-            Ghi chú: Tệp nhị phân gốc đang được đồng bộ tự động từ máy chủ nguồn.
-            ================================================================================
-            """, doc.getId(), doc.getFileEntryId(), doc.getFileName(),
-                doc.getGroupName() != null ? doc.getGroupName() : doc.getGroupId(),
-                doc.getObjectName() != null ? doc.getObjectName() : "N/A",
-                doc.getUploader() != null ? doc.getUploader() : "admin",
-                doc.getCreatedAt() != null ? doc.getCreatedAt() : OffsetDateTime.now().toString());
-
-        byte[] content = placeholderText.getBytes(StandardCharsets.UTF_8);
-        String mime = (doc.getMimeType() != null && !doc.getMimeType().isBlank()) ? doc.getMimeType() : "text/plain; charset=utf-8";
-        return new DocumentFileDownload(doc.getFileName(), mime, content);
+        throw new ResourceNotFoundException("Tệp nguồn chưa được lưu trong demo");
     }
 
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(

@@ -20,6 +20,7 @@ kcht:
     dry-run: true
   security:
     allow-anonymous-admin: true
+    legacy-test-headers: true
     jwt:
       secret: test-only-jwt-secret-not-for-production-2026
       access-token-expiration-ms: 900000

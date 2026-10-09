@@ -1,0 +1,14 @@
+*** Begin Patch
+*** Update File: frontend/src/test/VroadInboundPage.test.tsx
+@@
+-    vi.mocked(fetchVroadConfig).mockResolvedValue({
+-      targetUrl: 'https://www.vroad.vn/',
+-      platformUrl: 'https://platform.vroad.vn/',
+-      openApiUrl: '/v3/api-docs',
+-      swaggerUiUrl: '/swagger-ui/index.html',
+-      schemaVersion: 'demo-proposal-v1',
+-      syncStatus: 'CONNECTED',
+-      defaultBatchPrefix: 'vroad-sync-',
+-    });
+     vi.mocked(fetchInboundBatches).mockResolvedValue([batch]);
+*** End Patch

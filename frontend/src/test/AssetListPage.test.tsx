@@ -241,11 +241,11 @@ describe('AssetListPage Unit & Integration Tests', () => {
 
     expect(screen.getByText('Cây Phân Cấp Dữ liệu')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Tìm kiếm tập dữ liệu...')).toBeInTheDocument();
+    expect(screen.queryByText(/Tệp nguồn:/)).not.toBeInTheDocument();
 
-    // Vertical slice buttons
-    expect(screen.getByText(/Biển báo đường bộ/)).toBeInTheDocument();
-    expect(screen.getByText(/Đường quốc lộ/)).toBeInTheDocument();
-    expect(screen.getByText(/Cầu đường bộ/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Biển báo hiệu đường bộ/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mạng lưới Quốc lộ/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cầu đường bộ/ })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(api.fetchDatasetTree).toHaveBeenCalledTimes(1);

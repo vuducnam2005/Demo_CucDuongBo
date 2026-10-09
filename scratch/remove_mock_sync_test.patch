@@ -1,0 +1,14 @@
+*** Begin Patch
+*** Update File: frontend/src/test/VroadInboundPage.test.tsx
+@@
+-  it('triggers automated sync when sync button is clicked', async () => {
+-    vi.mocked(triggerVroadSync).mockResolvedValue({
+-      batch: { ...batch, requestKey: 'vroad-sync-999', pending: 3, invalid: 0 },
+-      records: [],
+-    });
+-    renderPage();
+-    fireEvent.click(screen.getByRole('button', { name: /Kích hoạt Đồng bộ/i }));
+-    await waitFor(() => expect(triggerVroadSync).toHaveBeenCalled());
+-  });
+ });
+*** End Patch

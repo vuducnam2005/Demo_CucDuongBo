@@ -28,6 +28,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Value("${kcht.security.allow-anonymous-admin:false}")
     private boolean allowAnonymousAdmin;
 
+    @Value("${kcht.security.legacy-test-headers:false}")
+    private boolean legacyTestHeaders;
+
+    @Value("${spring.profiles.active:}")
+    private String activeProfile;
+
     public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
                                    CustomUserDetailsService userDetailsService) {
         this.jwtTokenProvider = jwtTokenProvider;
@@ -45,38 +51,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Claims claims = jwtTokenProvider.getClaimsFromToken(jwt);
                 String username = claims.getSubject();
 
-                List<GrantedAuthority> authorities = new ArrayList<>();
-                String role = claims.get("role", String.class);
-                if (role != null) {
-                    authorities.add(new SimpleGrantedAuthority(role));
+                UserPrincipal principal = (UserPrincipal) userDetailsService.loadUserByUsername(username);
+                if (!principal.isEnabled()) {
+                    throw new org.springframework.security.authentication.DisabledException("Tài khoản đã bị khóa");
                 }
-
-                @SuppressWarnings("unchecked")
-                List<String> perms = claims.get("permissions", List.class);
-                if (perms != null) {
-                    for (String perm : perms) {
-                        authorities.add(new SimpleGrantedAuthority(perm));
-                    }
-                }
-
-                Long userId = claims.get("userId", Long.class);
-                String fullName = claims.get("fullName", String.class);
-                String orgId = claims.get("organizationId", String.class);
-                String branchId = claims.get("branchId", String.class);
-
-                UserPrincipal principal = new UserPrincipal(
-                        userId, username, null, null, fullName, role, null, orgId, branchId, true, perms, authorities
-                );
 
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } else {
                 // Tương thích ngược với các bài kiểm thử Giai đoạn 4: Hỗ trợ header X-User-Role
                 String legacyRoleHeader = request.getHeader("X-User-Role");
-                if (StringUtils.hasText(legacyRoleHeader)) {
+                if (activeProfile.contains("test") && legacyTestHeaders && StringUtils.hasText(legacyRoleHeader)) {
                     String role = legacyRoleHeader.trim().toUpperCase();
                     if (!role.startsWith("ROLE_")) {
                         role = "ROLE_" + role;
@@ -89,7 +77,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(principal, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                } else if (allowAnonymousAdmin) {
+                } else if (activeProfile.contains("test") && allowAnonymousAdmin) {
                     // Môi trường dev/test khi bật cờ ẩn danh cho phép đọc/ghi công khai
                     List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_ADMIN"));
                     UserPrincipal principal = new UserPrincipal(

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Card,
   Typography,
@@ -25,6 +26,7 @@ import {
   CloudUploadOutlined,
   PlusOutlined,
   DeleteOutlined,
+  EditOutlined,
   SearchOutlined,
   ReloadOutlined,
   FilePdfOutlined,
@@ -35,17 +37,25 @@ import {
   FileTextOutlined,
   InboxOutlined,
   LockOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchDocumentFolders,
+  fetchDocumentBranches,
   createDocumentFolder,
+  renameDocumentFolder,
+  deleteDocumentFolder,
   fetchDocuments,
   downloadDocumentFile,
+  fetchDocumentVersions,
+  uploadDocumentVersion,
   uploadDocumentFile,
   deleteDocumentFile,
+  renameDocumentFile,
   DocumentFolder,
   DocumentItem,
+  DocumentVersion,
 } from '../services/documentApi';
 import { getApiErrorMessage, shouldRetryQuery } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -55,13 +65,17 @@ const { Title, Paragraph, Text } = Typography;
 const { Dragger } = Upload;
 
 export const DocumentExplorerPage: React.FC = () => {
-  const { hasRole, hasPermission } = useAuth();
+  const { user, hasRole, hasPermission } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedAsset = searchParams.get('asset');
+  const linkedAssetKey = requestedAsset && /^[A-Za-z0-9_.:-]{1,150}$/.test(requestedAsset)
+    ? requestedAsset : '';
   const canUpload = hasRole(['ROLE_EDITOR', 'ROLE_MANAGER', 'ROLE_ADMIN']) || hasPermission('DOCUMENT', 'create');
   const canManage = hasRole(['ROLE_MANAGER', 'ROLE_ADMIN']) || hasPermission('DOCUMENT', 'delete');
   const queryClient = useQueryClient();
 
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
-  const [searchKeyword, setSearchKeyword] = useState<string>('');
+  const [searchKeyword, setSearchKeyword] = useState<string>(linkedAssetKey);
   const [extensionFilter, setExtensionFilter] = useState<string>('');
   const [page, setPage] = useState<number>(0);
   const pageSize = 15;
@@ -69,20 +83,36 @@ export const DocumentExplorerPage: React.FC = () => {
   // Folder modal
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [folderNameInput, setFolderNameInput] = useState('');
+  const [folderBranchId, setFolderBranchId] = useState('moc_dbvn');
+  const [folderRenameTarget, setFolderRenameTarget] = useState<DocumentFolder | null>(null);
+  const [renamedFolder, setRenamedFolder] = useState('');
 
   // Upload modal
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadFolderId, setUploadFolderId] = useState<string>('');
-  const [uploadAssetId, setUploadAssetId] = useState<string>('');
+  const [uploadAssetId, setUploadAssetId] = useState<string>(linkedAssetKey);
   const [uploadBranchId, setUploadBranchId] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [renameTarget, setRenameTarget] = useState<DocumentItem | null>(null);
+  const [renamedFile, setRenamedFile] = useState('');
+  const [historyTarget, setHistoryTarget] = useState<DocumentItem | null>(null);
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
+  const [changeNote, setChangeNote] = useState('');
+  const [isReplacing, setIsReplacing] = useState(false);
 
   // Queries
   const foldersQuery = useQuery<DocumentFolder[]>({
     queryKey: ['documentFolders'],
     queryFn: fetchDocumentFolders,
+    retry: shouldRetryQuery,
+  });
+
+  const branchesQuery = useQuery({
+    queryKey: ['documentBranches'],
+    queryFn: fetchDocumentBranches,
+    enabled: user?.role === 'ROLE_ADMIN',
     retry: shouldRetryQuery,
   });
 
@@ -99,18 +129,53 @@ export const DocumentExplorerPage: React.FC = () => {
     retry: shouldRetryQuery,
   });
 
+  const versionsQuery = useQuery({
+    queryKey: ['documentVersions', historyTarget?.id],
+    queryFn: () => fetchDocumentVersions(historyTarget!.id),
+    enabled: !!historyTarget,
+    retry: shouldRetryQuery,
+  });
+
   // Mutations
   const createFolderMutation = useMutation({
-    mutationFn: (name: string) => createDocumentFolder(name, selectedFolderId || undefined),
+    mutationFn: (name: string) => createDocumentFolder(
+      name, selectedFolderId || undefined,
+      !selectedFolderId && user?.role === 'ROLE_ADMIN' ? folderBranchId : undefined
+    ),
     onSuccess: (newFolder) => {
       message.success(`Đã tạo thư mục "${newFolder.folderName}" thành công`);
       setIsFolderModalOpen(false);
       setFolderNameInput('');
+      setFolderBranchId('moc_dbvn');
       void queryClient.invalidateQueries({ queryKey: ['documentFolders'] });
     },
     onError: (err: unknown) => {
       message.error(getApiErrorMessage(err));
     },
+  });
+
+  const renameFolderMutation = useMutation({
+    mutationFn: () => renameDocumentFolder(folderRenameTarget!.id, renamedFolder.trim()),
+    onSuccess: () => {
+      message.success('Đã đổi tên thư mục');
+      setFolderRenameTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ['documentFolders'] });
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (error: unknown) => message.error(getApiErrorMessage(error)),
+  });
+
+  const deleteFolderMutation = useMutation({
+    mutationFn: (id: string) => deleteDocumentFolder(id),
+    onSuccess: (_, id) => {
+      message.success('Đã xóa thư mục trống');
+      if (selectedFolderId === id) setSelectedFolderId('');
+      if (uploadFolderId === id) setUploadFolderId('');
+      setPage(0);
+      void queryClient.invalidateQueries({ queryKey: ['documentFolders'] });
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (error: unknown) => message.error(getApiErrorMessage(error)),
   });
 
   const deleteDocMutation = useMutation({
@@ -125,8 +190,18 @@ export const DocumentExplorerPage: React.FC = () => {
     },
   });
 
+  const renameDocMutation = useMutation({
+    mutationFn: () => renameDocumentFile(renameTarget!.id, renamedFile.trim()),
+    onSuccess: () => {
+      message.success('Đã cập nhật tên hồ sơ');
+      setRenameTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (error: unknown) => message.error(getApiErrorMessage(error)),
+  });
+
   const handleDownload = async (doc: DocumentItem) => {
-    const documentId = doc.fileEntryId || doc.id;
+    const documentId = doc.id;
     if (downloadingId) return;
     try {
       setDownloadingId(documentId);
@@ -137,6 +212,37 @@ export const DocumentExplorerPage: React.FC = () => {
       message.error({ content: getApiErrorMessage(error), key: 'dl' });
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleVersionDownload = async (version: DocumentVersion) => {
+    if (!historyTarget || downloadingId) return;
+    setDownloadingId(historyTarget.id);
+    try {
+      await downloadDocumentFile(historyTarget.id, version.fileName, version.versionNumber);
+      message.success('Đã tải phiên bản hồ sơ');
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleReplace = async () => {
+    if (!historyTarget || !replacementFile) return;
+    setIsReplacing(true);
+    try {
+      await uploadDocumentVersion(historyTarget.id, replacementFile, changeNote);
+      setHistoryTarget((previous) => previous ? { ...previous, fileName: replacementFile.name } : previous);
+      setReplacementFile(null);
+      setChangeNote('');
+      message.success('Đã lưu phiên bản mới và giữ lại các phiên bản trước');
+      void queryClient.invalidateQueries({ queryKey: ['documentVersions', historyTarget.id] });
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
+    } catch (error: unknown) {
+      message.error(getApiErrorMessage(error));
+    } finally {
+      setIsReplacing(false);
     }
   };
 
@@ -152,12 +258,13 @@ export const DocumentExplorerPage: React.FC = () => {
         selectedFile,
         uploadFolderId || selectedFolderId || undefined,
         uploadAssetId || undefined,
-        uploadBranchId || undefined
+        !uploadFolderId && user?.role === 'ROLE_ADMIN' ? uploadBranchId || undefined : undefined
       );
       message.success(`Tải lên tệp "${selectedFile.name}" thành công`);
       setIsUploadModalOpen(false);
       setSelectedFile(null);
       setUploadAssetId('');
+      setUploadBranchId('');
       void queryClient.invalidateQueries({ queryKey: ['documents'] });
       void queryClient.invalidateQueries({ queryKey: ['documentFolders'] });
     } catch (err: unknown) {
@@ -185,7 +292,36 @@ export const DocumentExplorerPage: React.FC = () => {
   };
 
   const folders = foldersQuery.data || [];
-  const selectedFolder = folders.find((f) => f.id === selectedFolderId || f.folderCode === selectedFolderId);
+  const selectedFolder = folders.find((folder) => folder.id === selectedFolderId);
+  const branchOptions = [...new Set(['moc_dbvn', ...(branchesQuery.data || [])])].map((branch) => ({
+    label: branch === 'moc_dbvn' ? 'Cục Đường bộ Việt Nam' : branch === 'kqldb_1' ? 'Khu QLĐB I' : branch,
+    value: branch,
+  }));
+  const knownFolderIds = new Set(folders.map((folder) => folder.id));
+  const folderChildren = new Map<string, DocumentFolder[]>();
+  for (const folder of folders) {
+    const parentId = knownFolderIds.has(folder.parentId) && folder.parentId !== folder.id
+      ? folder.parentId : '#';
+    folderChildren.set(parentId, [...(folderChildren.get(parentId) || []), folder]);
+  }
+  const orderedFolders: { folder: DocumentFolder; depth: number }[] = [];
+  const visitedFolderIds = new Set<string>();
+  const addChildren = (parentId: string, depth: number) => {
+    for (const folder of folderChildren.get(parentId) || []) {
+      if (visitedFolderIds.has(folder.id)) continue;
+      visitedFolderIds.add(folder.id);
+      orderedFolders.push({ folder, depth: Math.min(depth, 6) });
+      addChildren(folder.id, depth + 1);
+    }
+  };
+  addChildren('#', 0);
+  for (const folder of folders) {
+    if (!visitedFolderIds.has(folder.id)) {
+      visitedFolderIds.add(folder.id);
+      orderedFolders.push({ folder, depth: 0 });
+      addChildren(folder.id, 1);
+    }
+  }
 
   return (
     <div>
@@ -197,7 +333,7 @@ export const DocumentExplorerPage: React.FC = () => {
               Quản lý Hồ sơ & Tài liệu Kỹ thuật KCHT
             </Title>
             <Paragraph type="secondary" style={{ margin: 0, fontSize: 13 }}>
-              Hệ thống lưu trữ phân cấp tệp hồ sơ công trình trên kho đối tượng MinIO / S3 (`kcht-documents`).
+              Hồ sơ công trình, tài liệu và tệp minh chứng theo đơn vị quản lý.
             </Paragraph>
           </div>
         </Space>
@@ -219,7 +355,7 @@ export const DocumentExplorerPage: React.FC = () => {
                   size="small"
                   type="primary"
                   icon={<PlusOutlined />}
-                  onClick={() => setIsFolderModalOpen(true)}
+                  onClick={() => { setFolderBranchId('moc_dbvn'); setIsFolderModalOpen(true); }}
                 >
                   Tạo thư mục
                 </Button>
@@ -273,14 +409,14 @@ export const DocumentExplorerPage: React.FC = () => {
               />
             ) : (
               <List
-                dataSource={folders}
+                dataSource={orderedFolders}
                 style={{ maxHeight: 620, overflowY: 'auto' }}
-                renderItem={(folder) => {
-                const isSelected = selectedFolderId === folder.id || selectedFolderId === folder.folderCode;
+                renderItem={({ folder, depth }) => {
+                const isSelected = selectedFolderId === folder.id;
                 return (
                   <List.Item
                     onClick={() => {
-                      setSelectedFolderId(folder.folderCode || folder.id);
+                      setSelectedFolderId(folder.id);
                       setPage(0);
                     }}
                     style={{
@@ -288,6 +424,7 @@ export const DocumentExplorerPage: React.FC = () => {
                       background: isSelected ? '#e6f4ff' : 'transparent',
                       borderLeft: isSelected ? '3px solid #1677ff' : '3px solid transparent',
                       padding: '8px 12px',
+                      paddingLeft: 12 + depth * 18,
                       borderRadius: 4,
                       marginBottom: 4,
                     }}
@@ -295,6 +432,9 @@ export const DocumentExplorerPage: React.FC = () => {
                     <Space direction="horizontal" size={8}>
                       <FolderFilled style={{ color: isSelected ? '#1677ff' : '#faad14', fontSize: 16 }} />
                       <span style={{ fontWeight: isSelected ? 600 : 400 }}>{folder.folderName}</span>
+                      {user?.role === 'ROLE_ADMIN' &&
+                        <Tag color="cyan">{branchOptions.find((branch) => branch.value === folder.branchId)?.label
+                          || folder.branchId || 'Chưa gán'}</Tag>}
                     </Space>
                     <Tag color={folder.documentCount > 0 ? 'blue' : 'default'}>{folder.documentCount}</Tag>
                   </List.Item>
@@ -314,15 +454,33 @@ export const DocumentExplorerPage: React.FC = () => {
                   <Title level={5} style={{ margin: 0 }}>
                     {selectedFolder ? selectedFolder.folderName : 'Tất cả tài liệu'}
                   </Title>
-                  {selectedFolder && <Tag color="geekblue">{selectedFolder.folderCode}</Tag>}
+                  {selectedFolder && user?.role === 'ROLE_ADMIN' && <Tag color="geekblue">
+                    {branchOptions.find((branch) => branch.value === selectedFolder.branchId)?.label
+                      || selectedFolder.branchId || 'Chưa gán'}
+                  </Tag>}
                 </Space>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  Kho lưu trữ đối tượng MinIO / S3 • Phân quyền RBAC bảo mật
+                  Danh sách hồ sơ trong phạm vi được cấp quyền
                 </Text>
               </Space>
             }
             extra={
               <Space>
+                {selectedFolder && hasRole(['ROLE_MANAGER', 'ROLE_ADMIN']) && <>
+                  <Button size="small" icon={<EditOutlined />} aria-label={`Đổi tên thư mục ${selectedFolder.folderName}`}
+                    onClick={() => { setRenamedFolder(selectedFolder.folderName); setFolderRenameTarget(selectedFolder); }}>
+                    Đổi tên thư mục
+                  </Button>
+                  <Popconfirm title="Xóa thư mục trống?" description="Thao tác này không xóa tệp hoặc thư mục con."
+                    onConfirm={() => deleteFolderMutation.mutate(selectedFolder.id)} okText="Xóa" cancelText="Hủy">
+                    <Button size="small" danger icon={<DeleteOutlined />}
+                      aria-label={`Xóa thư mục ${selectedFolder.folderName}`}
+                      loading={deleteFolderMutation.isPending && deleteFolderMutation.variables === selectedFolder.id}
+                      disabled={selectedFolder.documentCount > 0 || folders.some((folder) => folder.parentId === selectedFolder.id)}>
+                      Xóa thư mục
+                    </Button>
+                  </Popconfirm>
+                </>}
                 <Button
                   icon={<ReloadOutlined />}
                   onClick={() => documentsQuery.refetch()}
@@ -478,33 +636,43 @@ export const DocumentExplorerPage: React.FC = () => {
                 {
                   title: 'Thao tác',
                   key: 'actions',
-                  width: 110,
+                   width: 190,
                   align: 'center',
                   render: (_t, r) => (
                     <Space size="small">
+                      <Tooltip title="Lịch sử phiên bản">
+                        <Button size="small" icon={<HistoryOutlined />} aria-label={`Lịch sử ${r.fileName}`}
+                          onClick={() => setHistoryTarget(r)} />
+                      </Tooltip>
                       <Tooltip title="Tải xuống tệp tin">
                         <Button
                           size="small"
                           type="primary"
                           ghost
                           icon={<DownloadOutlined />}
-                          loading={downloadingId === (r.fileEntryId || r.id)}
-                          disabled={downloadingId !== null && downloadingId !== (r.fileEntryId || r.id)}
+                          loading={downloadingId === r.id}
+                          disabled={downloadingId !== null && downloadingId !== r.id}
                           onClick={() => handleDownload(r)}
                         />
                       </Tooltip>
                       {canManage && (
+                        <Tooltip title="Đổi tên hồ sơ">
+                          <Button size="small" icon={<EditOutlined />} aria-label="Đổi tên hồ sơ"
+                            onClick={() => { setRenameTarget(r); setRenamedFile(r.fileName); }} />
+                        </Tooltip>
+                      )}
+                      {canManage && (
                         <Popconfirm
                           title="Xác nhận xóa tài liệu này?"
-                          description="Tệp tin sẽ bị xóa khỏi kho lưu trữ và CSDL."
+                          description="Hồ sơ sẽ được ẩn khỏi danh sách và lưu nhật ký thao tác."
                           onConfirm={() => {
-                            if (!deleteDocMutation.isPending) deleteDocMutation.mutate(r.fileEntryId || r.id);
+                            if (!deleteDocMutation.isPending) deleteDocMutation.mutate(r.id);
                           }}
                           okText="Xóa"
                           cancelText="Hủy"
                           okButtonProps={{
                             danger: true,
-                            loading: deleteDocMutation.isPending && deleteDocMutation.variables === (r.fileEntryId || r.id),
+                            loading: deleteDocMutation.isPending && deleteDocMutation.variables === r.id,
                           }}
                         >
                           <Button
@@ -512,8 +680,8 @@ export const DocumentExplorerPage: React.FC = () => {
                             type="text"
                             danger
                             icon={<DeleteOutlined />}
-                            loading={deleteDocMutation.isPending && deleteDocMutation.variables === (r.fileEntryId || r.id)}
-                            disabled={deleteDocMutation.isPending && deleteDocMutation.variables !== (r.fileEntryId || r.id)}
+                            loading={deleteDocMutation.isPending && deleteDocMutation.variables === r.id}
+                            disabled={deleteDocMutation.isPending && deleteDocMutation.variables !== r.id}
                           />
                         </Popconfirm>
                       )}
@@ -526,6 +694,53 @@ export const DocumentExplorerPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      <Modal title="Đổi tên hồ sơ" open={!!renameTarget} confirmLoading={renameDocMutation.isPending}
+        onCancel={() => { if (!renameDocMutation.isPending) setRenameTarget(null); }}
+        onOk={() => {
+          if (!renamedFile.trim()) return message.warning('Vui lòng nhập tên hồ sơ');
+          renameDocMutation.mutate();
+        }} okText="Lưu tên mới" cancelText="Hủy">
+        <Input aria-label="Tên hồ sơ mới" maxLength={500} value={renamedFile}
+          onChange={(event) => setRenamedFile(event.target.value)} />
+      </Modal>
+
+      <Modal title={`Lịch sử hồ sơ: ${historyTarget?.fileName || ''}`} open={!!historyTarget}
+        width={820} footer={null} onCancel={() => {
+          if (!isReplacing) {
+            setHistoryTarget(null);
+            setReplacementFile(null);
+            setChangeNote('');
+          }
+        }}>
+        {versionsQuery.isError && <Text type="danger">{getApiErrorMessage(versionsQuery.error)}</Text>}
+        <Table<DocumentVersion> rowKey="versionNumber" size="small" pagination={false}
+          loading={versionsQuery.isLoading} dataSource={versionsQuery.data || []}
+          locale={{ emptyText: 'Hồ sơ này chưa có tệp gốc được lưu tại hệ thống.' }}
+          columns={[
+            { title: 'Phiên bản', dataIndex: 'versionNumber', render: (number: number) => `v${number}` },
+            { title: 'Tên tệp', dataIndex: 'fileName', ellipsis: true },
+            { title: 'Người cập nhật', dataIndex: 'uploadedBy', render: (value: string | null) => value || 'Hệ thống' },
+            { title: 'Thời gian', dataIndex: 'uploadedAt',
+              render: (value: string) => value ? new Date(value).toLocaleString('vi-VN') : '—' },
+            { title: 'Ghi chú', dataIndex: 'changeNote', ellipsis: true },
+            { title: 'Tải', render: (_value, version) => (
+              <Button size="small" aria-label={`Tải phiên bản ${version.versionNumber}`}
+                icon={<DownloadOutlined />} loading={downloadingId === historyTarget?.id}
+                onClick={() => void handleVersionDownload(version)} />
+            ) },
+          ]} />
+        {canUpload && <Space direction="vertical" style={{ width: '100%', marginTop: 20 }}>
+          <Text strong>Tải phiên bản mới ({historyTarget?.fileExtension?.toUpperCase()})</Text>
+          <input key={`${historyTarget?.id}-${versionsQuery.data?.length || 0}`} type="file"
+            aria-label="Chọn tệp phiên bản mới" accept={`.${historyTarget?.fileExtension || 'pdf'}`}
+            onChange={(event) => setReplacementFile(event.target.files?.[0] || null)} />
+          <Input maxLength={1000} aria-label="Ghi chú phiên bản" value={changeNote}
+            placeholder="Nội dung thay đổi (không bắt buộc)" onChange={(event) => setChangeNote(event.target.value)} />
+          <Button type="primary" loading={isReplacing} disabled={!replacementFile}
+            onClick={() => void handleReplace()}>Lưu phiên bản mới</Button>
+        </Space>}
+      </Modal>
 
       {/* CREATE FOLDER MODAL */}
       <Modal
@@ -553,6 +768,21 @@ export const DocumentExplorerPage: React.FC = () => {
             onChange={(e) => setFolderNameInput(e.target.value)}
           />
         </div>
+        {user?.role === 'ROLE_ADMIN' && !selectedFolderId && <div style={{ marginTop: 12 }}>
+          <Text>Đơn vị quản lý</Text>
+          <Select aria-label="Đơn vị quản lý thư mục" style={{ width: '100%' }}
+            value={folderBranchId} onChange={setFolderBranchId} options={branchOptions} />
+        </div>}
+      </Modal>
+
+      <Modal title="Đổi tên thư mục" open={!!folderRenameTarget} confirmLoading={renameFolderMutation.isPending}
+        onCancel={() => { if (!renameFolderMutation.isPending) setFolderRenameTarget(null); }}
+        onOk={() => {
+          if (renamedFolder.trim().length < 2) { message.warning('Tên thư mục cần ít nhất 2 ký tự'); return; }
+          renameFolderMutation.mutate();
+        }} okText="Lưu" cancelText="Hủy">
+        <Input aria-label="Tên thư mục mới" maxLength={255} value={renamedFolder}
+          onChange={(event) => setRenamedFolder(event.target.value)} />
       </Modal>
 
       {/* UPLOAD DOCUMENT MODAL */}
@@ -604,7 +834,7 @@ export const DocumentExplorerPage: React.FC = () => {
               onChange={setUploadFolderId}
               options={[
                 { label: 'Hồ sơ chung (Mặc định)', value: '' },
-                ...folders.map((f) => ({ label: f.folderName, value: f.folderCode || f.id })),
+                ...folders.map((folder) => ({ label: folder.folderName, value: folder.id })),
               ]}
             />
           </div>
@@ -618,21 +848,15 @@ export const DocumentExplorerPage: React.FC = () => {
             />
           </div>
 
-          <div style={{ marginTop: 12 }}>
+          {user?.role === 'ROLE_ADMIN' && !uploadFolderId && <div style={{ marginTop: 12 }}>
             <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>Khu vực quản lý:</div>
             <Select
               style={{ width: '100%' }}
               value={uploadBranchId}
               onChange={setUploadBranchId}
-              options={[
-                { label: 'Cục Đường bộ Việt Nam', value: 'cdb_vn' },
-                { label: 'Khu QLĐB I', value: 'kqldb_1' },
-                { label: 'Khu QLĐB II', value: 'kqldb_2' },
-                { label: 'Khu QLĐB III', value: 'kqldb_3' },
-                { label: 'Khu QLĐB IV', value: 'kqldb_4' },
-              ]}
+              options={[{ label: 'Cục Đường bộ Việt Nam', value: '' }, ...branchOptions.filter((option) => option.value !== 'moc_dbvn')]}
             />
-          </div>
+          </div>}
         </div>
       </Modal>
     </div>

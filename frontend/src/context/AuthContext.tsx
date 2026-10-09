@@ -68,7 +68,7 @@ const clearStoredProfile = () => {
   localStorage.removeItem(PROFILE_CACHE_VERSION_KEY);
 };
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode; onSessionChange?: () => void }> = ({ children, onSessionChange }) => {
   const [user, setUser] = useState<UserSummary | null>(getInitialCachedUser);
   const [token, setToken] = useState<string | null>(getStoredToken());
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -76,6 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshUserProfile = useCallback(async () => {
     try {
       const profile = await getMeApi();
+      onSessionChange?.();
       setUser(profile);
       saveStoredProfile(profile);
     } catch (err: unknown) {
@@ -85,9 +86,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setToken(null);
         setStoredToken(null);
         clearStoredProfile();
+        onSessionChange?.();
       }
     }
-  }, []);
+  }, [onSessionChange]);
 
   // Check auth session on startup
   useEffect(() => {
@@ -117,16 +119,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(null);
       setStoredToken(null);
       clearStoredProfile();
+      onSessionChange?.();
     };
 
     window.addEventListener('auth:expired', handleExpired);
     return () => {
       window.removeEventListener('auth:expired', handleExpired);
     };
-  }, [refreshUserProfile]);
+  }, [refreshUserProfile, onSessionChange]);
 
   const login = async (params: LoginParams): Promise<AuthResponse> => {
     const data = await loginApi(params);
+    onSessionChange?.();
     setToken(data.accessToken);
     setUser(data.user);
     saveStoredProfile(data.user);
@@ -143,6 +147,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setToken(null);
       setStoredToken(null);
       clearStoredProfile();
+      onSessionChange?.();
     }
   };
 

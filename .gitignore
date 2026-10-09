@@ -7,6 +7,7 @@
 .env.local
 .env.*.local
 .env.production
+.env.rotate.local
 *.key
 *.pem
 *.pfx
@@ -35,11 +36,16 @@ frontend/.env.local
 frontend/*.tsbuildinfo
 
 # Logs & Runtime Dumps
+scratch/vroad-preview/
 *.log
+__pycache__/
+*.pyc
 *.dump
 deploy/backups/
 backups/
 data/storage/
+scratch/*.json
+scratch/*.png
 
 # IDE & Editor Configuration
 .idea/

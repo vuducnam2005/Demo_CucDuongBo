@@ -1,0 +1,26 @@
+﻿*** Begin Patch
+*** Update File: frontend/src/services/vroadInboundApi.ts
+@@
+   requestKey: string;
+   schemaVersion: 'demo-proposal-v1';
+   records: Record<string, unknown>[];
+ }
++
++export interface VroadSyncConfig {
++  targetUrl: string;
++  platformUrl: string;
++  openApiUrl: string;
++  swaggerUiUrl: string;
++  schemaVersion: string;
++  syncStatus: string;
++  defaultBatchPrefix: string;
++}
++
++export const fetchVroadConfig = async (): Promise<VroadSyncConfig> =>
++  (await apiClient.get<VroadSyncConfig>('/api/vroad/inbound/config')).data;
++
++export const triggerVroadSync = async (): Promise<InboundBatchDetail> =>
++  (await apiClient.post<InboundBatchDetail>('/api/vroad/inbound/sync-vroad', {})).data;
+
+ export const fetchInboundBatches = async (page = 0): Promise<InboundBatch[]> =>
+*** End Patch

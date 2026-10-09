@@ -15,7 +15,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredRoles,
   requiredPermission,
 }) => {
-  const { isAuthenticated, isLoading, hasRole, hasPermission } = useAuth();
+  const { isAuthenticated, isLoading, hasRole, hasPermission, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -39,6 +39,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!isAuthenticated) {
     const redirectUrl = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?redirect=${redirectUrl}`} replace />;
+  }
+
+  if (user?.branchId && !hasRole('ROLE_ADMIN') && !['/', '/dashboard', '/map', '/cases', '/traffic', '/documents'].includes(location.pathname)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // Check required roles

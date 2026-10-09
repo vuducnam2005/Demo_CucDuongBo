@@ -66,6 +66,11 @@ public class ImportCliRunner implements CommandLineRunner {
             }
         }
 
+        if (!syncRegistry && !allFiles && singleFile == null && multipleFiles == null
+                && filter == null && !dryRun) {
+            return;
+        }
+
         log.info("==============================================================================");
         log.info("CLI IMPORT SERVICE - CỤC ĐƯỜNG BỘ VIỆT NAM");
         log.info("Tham số: all={}, dryRun={}, syncRegistry={}, file={}, files={}, filter={}, limit={}",

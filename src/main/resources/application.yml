@@ -7,6 +7,10 @@ server:
       force-response: true
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 27MB
   application:
     name: kcht-api-service
   datasource:
@@ -62,7 +66,7 @@ kcht:
       name: ${REFRESH_COOKIE_NAME}
       secure: ${REFRESH_COOKIE_SECURE}
       same-site: ${REFRESH_COOKIE_SAME_SITE}
-      domain: ${REFRESH_COOKIE_DOMAIN}
+      domain: ${REFRESH_COOKIE_DOMAIN:}
       path: ${REFRESH_COOKIE_PATH}
   storage:
     type: ${STORAGE_TYPE:local}

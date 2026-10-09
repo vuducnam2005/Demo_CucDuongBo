@@ -154,7 +154,18 @@ public class DatasetQueryService {
         // Tìm kiếm theo từ khóa (keyword / q)
         if (keyword != null && !keyword.isBlank()) {
             String kwPattern = "%" + keyword.trim() + "%";
-            if ("tbl_bridge".equals(datasetKey)) {
+            if ("mst_national_road".equals(datasetKey) || "mst_national_expressway".equals(datasetKey)) {
+                whereSql.append(" AND (record_key ILIKE ? OR raw_payload->>'name_vi' ILIKE ? OR raw_payload->>'road_number' ILIKE ?)");
+                params.add(kwPattern);
+                params.add(kwPattern);
+                params.add(kwPattern);
+            } else if ("vroad_assets".equals(datasetKey)) {
+                whereSql.append(" AND (record_key ILIKE ? OR raw_payload->>'route_name' ILIKE ? OR raw_payload->>'asset_type' ILIKE ? OR raw_payload->>'category' ILIKE ?)");
+                params.add(kwPattern);
+                params.add(kwPattern);
+                params.add(kwPattern);
+                params.add(kwPattern);
+            } else if ("tbl_bridge".equals(datasetKey)) {
                 // Keep the large bridge search aligned with its composite trigram index.
                 whereSql.append(" AND (coalesce(record_key, '') || ' ' || coalesce(raw_payload->>'name', '') || ' ' || coalesce(raw_payload->>'fielddisplay', '') || ' ' || coalesce(raw_payload->>'text', '') || ' ' || coalesce(raw_payload->>'route_name', '')) ILIKE ?");
                 params.add(kwPattern);
@@ -842,55 +853,32 @@ public class DatasetQueryService {
         }
 
         List<DatasetTreeNodeDto> rootNodes = new ArrayList<>();
-
-        // Branch 1: Tuyến đường & Nền mặt đường
-        DatasetTreeNodeDto roadsGroup = new DatasetTreeNodeDto("group_roads", "Tuyến đường & Nền mặt đường", null, null, "group", "CompassOutlined", false);
-        roadsGroup.getChildren().add(createLeafNode("mst_national_road", "Đường quốc lộ (169 tuyến)", 169L, "asset", "CompassOutlined"));
-        roadsGroup.getChildren().add(createLeafNode("mst_urban_road", "Đường đô thị (20.120 đoạn)", 20120L, "asset", "CompassOutlined"));
-        roadsGroup.getChildren().add(createLeafNode("mst_commune_road", "Đường xã (14.394 đoạn)", 14394L, "asset", "CompassOutlined"));
-        roadsGroup.getChildren().add(createLeafNode("mst_village_road", "Đường thôn (28.597 đoạn)", 28597L, "asset", "CompassOutlined"));
-        roadsGroup.getChildren().add(createLeafNode("tbl_rmd", "Thông tin đoạn tuyến (6.708 đoạn)", 6708L, "asset", "CompassOutlined"));
-        rootNodes.add(roadsGroup);
-
-        // Branch 2: Cầu & Kết cấu vượt
-        DatasetTreeNodeDto bridgesGroup = new DatasetTreeNodeDto("group_bridges", "Cầu & Kết cấu vượt", null, null, "group", "BuildOutlined", false);
-        bridgesGroup.getChildren().add(createLeafNode("tbl_bridge", "Cầu quốc lộ (11.631 cầu)", 11631L, "asset", "BuildOutlined"));
-        bridgesGroup.getChildren().add(createLeafNode("tbl_pierstr", "Kết cấu nhịp (14.948 nhịp)", 14948L, "asset", "BuildOutlined"));
-        bridgesGroup.getChildren().add(createLeafNode("tbl_unstr", "Kết cấu dưới (21.463 trụ/mố)", 21463L, "asset", "BuildOutlined"));
-        rootNodes.add(bridgesGroup);
-
-        // Branch 3: Báo hiệu & An toàn Giao thông
-        DatasetTreeNodeDto signsGroup = new DatasetTreeNodeDto("group_traffic_signs", "Báo hiệu & An toàn Giao thông", null, null, "group", "AlertOutlined", false);
-        signsGroup.getChildren().add(createLeafNode("tbl_road_sign", "Biển báo đường bộ (222.112 biển)", 222112L, "asset", "AlertOutlined"));
-        signsGroup.getChildren().add(createLeafNode("road_sphere_mirror", "Giá long môn & gương cầu (191.928 thiết bị)", 191928L, "asset", "AlertOutlined"));
-        signsGroup.getChildren().add(createLeafNode("tbl_guardrail", "Hộ lan & hàng rào bảo vệ (51.697 đoạn)", 51697L, "asset", "AlertOutlined"));
-        signsGroup.getChildren().add(createLeafNode("tbl_guide_post", "Cọc tiêu & cọc H (37.042 cọc)", 37042L, "asset", "AlertOutlined"));
-        signsGroup.getChildren().add(createLeafNode("tbl_km_post", "Cột Km (21.910 cột)", 21910L, "asset", "AlertOutlined"));
-        rootNodes.add(signsGroup);
-
-        // Branch 4: Công trình Thoát nước & Mái dốc
-        DatasetTreeNodeDto drainageGroup = new DatasetTreeNodeDto("group_drainage", "Công trình Thoát nước & Mái dốc", null, null, "group", "AppstoreOutlined", false);
-        drainageGroup.getChildren().add(createLeafNode("tbl_longitudinal", "Cống dọc, rãnh dọc, hố ga (61.161 công trình)", 61161L, "asset", "AppstoreOutlined"));
-        drainageGroup.getChildren().add(createLeafNode("tbl_transverse_drainage", "Cống thoát nước ngang (60.716 cống)", 60716L, "asset", "AppstoreOutlined"));
-        drainageGroup.getChildren().add(createLeafNode("tbl_slope", "Bảo vệ mái dốc taluy (11.099 đoạn)", 11099L, "asset", "AppstoreOutlined"));
-        drainageGroup.getChildren().add(createLeafNode("tbl_retaining_wall", "Kè, tường chắn (9.856 tường)", 9856L, "asset", "AppstoreOutlined"));
-        rootNodes.add(drainageGroup);
-
-        // Branch 5: Nút giao & Tiện ích Khai thác
-        DatasetTreeNodeDto intersectionGroup = new DatasetTreeNodeDto("group_intersections", "Nút giao & Tiện ích Khai thác", null, null, "group", "EnvironmentOutlined", false);
-        intersectionGroup.getChildren().add(createLeafNode("tbl_intersection", "Nút giao đường bộ (7.053 nút)", 7053L, "asset", "EnvironmentOutlined"));
-        intersectionGroup.getChildren().add(createLeafNode("tbl_median_strip", "Dải phân cách giữa (6.960 dải)", 6960L, "asset", "EnvironmentOutlined"));
-        intersectionGroup.getChildren().add(createLeafNode("tbl_bus_stops", "Điểm dừng đỗ xe bus (5.418 điểm)", 5418L, "asset", "EnvironmentOutlined"));
-        rootNodes.add(intersectionGroup);
-
-        // Branch 6: Lazy-loadable all 57 physical asset datasets
-        DatasetTreeNodeDto allAssetsGroup = new DatasetTreeNodeDto("group_all_assets", "Tất cả 57 Tập Dữ liệu Vật thể (Nạp thêm...)", null, 830836L, "group", "DatabaseOutlined", false);
-        rootNodes.add(allAssetsGroup);
-
-        // Branch 7: Lazy-loadable 601 modules & catalogs
-        DatasetTreeNodeDto allModulesGroup = new DatasetTreeNodeDto("group_modules", "Danh mục & Phân hệ Quản lý (601 danh mục - Nạp thêm...)", null, 273252L, "group", "FileTextOutlined", false);
-        rootNodes.add(allModulesGroup);
-
+        DatasetTreeNodeDto roads = new DatasetTreeNodeDto("group_roads", "Tuyến đường", null, null,
+                "group", "CompassOutlined", false);
+        DatasetTreeNodeDto assets = new DatasetTreeNodeDto("group_all_assets", "Tài sản đường bộ", null, null,
+                "group", "DatabaseOutlined", false);
+        DatasetTreeNodeDto modules = new DatasetTreeNodeDto("group_modules", "Quan trắc và danh mục", null, null,
+                "group", "FileTextOutlined", false);
+        jdbcTemplate.query("""
+                SELECT d.dataset_key, d.dataset_name, d.kind, COUNT(r.id) AS records
+                FROM dataset_registry d
+                LEFT JOIN raw_dataset_record r ON r.dataset_key = d.dataset_key
+                WHERE d.is_active = true
+                GROUP BY d.dataset_key, d.dataset_name, d.kind
+                HAVING COUNT(r.id) > 0
+                ORDER BY d.dataset_name
+                """, result -> {
+            String key = result.getString("dataset_key");
+            String kind = result.getString("kind");
+            long count = result.getLong("records");
+            DatasetTreeNodeDto group = key.equals("mst_national_road") || key.equals("mst_national_expressway")
+                    ? roads : "asset".equals(kind) ? assets : modules;
+            group.getChildren().add(createLeafNode(key, result.getString("dataset_name") + " (" + count + ")",
+                    count, kind, "DatabaseOutlined"));
+        });
+        if (!roads.getChildren().isEmpty()) rootNodes.add(roads);
+        if (!assets.getChildren().isEmpty()) rootNodes.add(assets);
+        if (!modules.getChildren().isEmpty()) rootNodes.add(modules);
         return rootNodes;
     }
 

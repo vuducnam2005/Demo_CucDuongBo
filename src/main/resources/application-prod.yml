@@ -64,7 +64,7 @@ kcht:
       name: ${REFRESH_COOKIE_NAME}
       secure: ${REFRESH_COOKIE_SECURE}
       same-site: ${REFRESH_COOKIE_SAME_SITE}
-      domain: ${REFRESH_COOKIE_DOMAIN}
+      domain: ${REFRESH_COOKIE_DOMAIN:}
       path: ${REFRESH_COOKIE_PATH}
     rate-limit:
       login-max-attempts: ${LOGIN_MAX_ATTEMPTS:5}

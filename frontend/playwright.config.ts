@@ -9,7 +9,8 @@ export default defineConfig({
   fullyParallel: false,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:3000',
+    launchOptions: process.env.QA_CHROME_PATH ? { executablePath: process.env.QA_CHROME_PATH } : {},
+    baseURL: process.env.QA_BASE_URL || 'http://localhost:3000',
     trace: 'off',
     screenshot: 'only-on-failure',
     viewport: { width: 1366, height: 768 },
@@ -24,7 +25,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:3000',
+    url: process.env.QA_BASE_URL || 'http://localhost:3000',
     reuseExistingServer: true,
     timeout: 30000,
   },

@@ -22,9 +22,7 @@ import {
   FolderOpenOutlined,
   ArrowRightOutlined,
   DatabaseOutlined,
-  SecurityScanOutlined,
   SyncOutlined,
-  FilterOutlined,
   ClockCircleOutlined,
   EnvironmentOutlined,
   AppstoreOutlined,
@@ -51,6 +49,7 @@ import {
   shouldRetryQuery,
 } from '../services/api';
 import { QueryState, TableSkeleton } from '../components/common';
+import { VroadOverviewPanel } from '../components/dashboard/VroadOverviewPanel';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -77,11 +76,6 @@ const formatNumber = (val?: number | null): string => {
   return val.toLocaleString('vi-VN');
 };
 
-// Reusable Metric Card guaranteeing compliance with:
-// 1. Source dataset
-// 2. Filter applied
-// 3. Last updated timestamp
-// 4. Link to detail list
 interface DashboardKpiCardProps {
   title: string;
   value?: number;
@@ -90,8 +84,6 @@ interface DashboardKpiCardProps {
   icon: React.ReactNode;
   color: string;
   bgColor: string;
-  sourceDataset: string;
-  filterApplied: string;
   lastUpdated?: string;
   detailUrl: string;
   detailText?: string;
@@ -106,8 +98,6 @@ const DashboardKpiCard: React.FC<DashboardKpiCardProps> = ({
   icon,
   color,
   bgColor,
-  sourceDataset,
-  filterApplied,
   lastUpdated,
   detailUrl,
   detailText = 'Xem chi tiết',
@@ -173,27 +163,6 @@ const DashboardKpiCard: React.FC<DashboardKpiCardProps> = ({
       </div>
 
       <div style={{ marginTop: 'auto', paddingTop: 10, borderTop: '1px dashed #e8e8e8' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
-          <Tooltip title={`Tập dữ liệu gốc: ${sourceDataset}`}>
-            <Tag
-              color="blue"
-              icon={<DatabaseOutlined />}
-              style={{ fontSize: 10, margin: 0, padding: '0 4px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}
-            >
-              Nguồn: {sourceDataset.split(',')[0]}
-            </Tag>
-          </Tooltip>
-          <Tooltip title={`Bộ lọc áp dụng: ${filterApplied}`}>
-            <Tag
-              color="default"
-              icon={<FilterOutlined />}
-              style={{ fontSize: 10, margin: 0, padding: '0 4px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}
-            >
-              Lọc: {filterApplied}
-            </Tag>
-          </Tooltip>
-        </div>
-
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: '#8c8c8c', display: 'flex', alignItems: 'center', gap: 4 }}>
             <ClockCircleOutlined style={{ fontSize: 10 }} />
@@ -213,11 +182,8 @@ const DashboardKpiCard: React.FC<DashboardKpiCardProps> = ({
   );
 };
 
-// Reusable Section Header with Metadata
 interface SectionCardWrapperProps {
   title: React.ReactNode;
-  sourceDataset: string;
-  filterApplied: string;
   lastUpdated?: string;
   detailUrl: string;
   detailText?: string;
@@ -227,8 +193,6 @@ interface SectionCardWrapperProps {
 
 const SectionCardWrapper: React.FC<SectionCardWrapperProps> = ({
   title,
-  sourceDataset,
-  filterApplied,
   lastUpdated,
   detailUrl,
   detailText = 'Xem toàn bộ danh sách',
@@ -239,17 +203,7 @@ const SectionCardWrapper: React.FC<SectionCardWrapperProps> = ({
 
   return (
     <Card
-      title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span>{title}</span>
-          <Tag color="cyan" icon={<DatabaseOutlined />} style={{ fontSize: 11 }}>
-            Nguồn: {sourceDataset}
-          </Tag>
-          <Tag color="geekblue" icon={<FilterOutlined />} style={{ fontSize: 11 }}>
-            Lọc: {filterApplied}
-          </Tag>
-        </div>
-      }
+      title={title}
       extra={
         <Space>
           <span style={{ fontSize: 11, color: '#8c8c8c' }}>
@@ -439,7 +393,7 @@ export const DashboardPage: React.FC = () => {
       key: 'ratio',
       width: 180,
       render: (_, record) => {
-        const total = summary?.totalAssets || 830836;
+        const total = summary?.totalAssets || 0;
         const percent = total > 0 ? ((record.totalAssets / total) * 100).toFixed(1) : '0';
         return (
           <Tooltip title={`${record.totalAssets.toLocaleString()} / ${total.toLocaleString()} tài sản`}>
@@ -657,8 +611,7 @@ export const DashboardPage: React.FC = () => {
           </Title>
           <Paragraph type="secondary" style={{ margin: '4px 0 0 0', fontSize: 13 }}>
             Xin chào, <strong>{user?.fullName || user?.username}</strong>. Tổng hợp dữ liệu kết cấu hạ
-            tầng giao thông đường bộ quốc gia theo thời gian thực từ 658 tập dữ liệu và 1,1 triệu bản
-            ghi.
+            tầng giao thông đường bộ từ cơ sở dữ liệu hiện có.
           </Paragraph>
         </div>
         <Space>
@@ -669,24 +622,10 @@ export const DashboardPage: React.FC = () => {
           >
             Làm mới Dữ liệu
           </Button>
-          <Tag color="blue" icon={<SecurityScanOutlined />}>
-            Phiên làm việc an toàn
-          </Tag>
-          <Tag color="cyan" icon={<EnvironmentOutlined />}>
-            PostGIS EPSG:4326
-          </Tag>
         </Space>
       </div>
 
-      {/* Aggregate Notice */}
-      <Alert
-        message="Hệ thống Tổng hợp Server-side Aggregates"
-        description="Mọi chỉ số, thống kê phân bổ và chiều dài được tính toán tối ưu tại cơ sở dữ liệu PostgreSQL + PostGIS (Materialized Views & Indexes), không tính toán hàng trăm nghìn dòng trên trình duyệt."
-        type="info"
-        showIcon
-        closable
-        style={{ marginBottom: 20, borderRadius: 6 }}
-      />
+      <VroadOverviewPanel />
 
       {summaryErrorPresentation && (
         <Alert
@@ -714,8 +653,6 @@ export const DashboardPage: React.FC = () => {
             icon={<DatabaseOutlined />}
             color="#003a8c"
             bgColor="#f0f5ff"
-            sourceDataset={summary?.sourceDataset || 'raw_dataset_record, dataset_registry'}
-            filterApplied={summary?.filter || 'Toàn quốc - Đang khai thác'}
             lastUpdated={summary?.lastUpdated}
             detailUrl="/assets"
             detailText="Tra cứu"
@@ -732,8 +669,6 @@ export const DashboardPage: React.FC = () => {
             icon={<BuildOutlined />}
             color="#1677ff"
             bgColor="#e6f4ff"
-            sourceDataset="tbl_bridge"
-            filterApplied="4 Khu QLĐB & các Sở GTVT"
             lastUpdated={summary?.lastUpdated}
             detailUrl="/assets?datasetKey=tbl_bridge"
             detailText="Tra cứu cầu"
@@ -750,8 +685,6 @@ export const DashboardPage: React.FC = () => {
             icon={<AlertOutlined />}
             color="#52c41a"
             bgColor="#f6ffed"
-            sourceDataset="tbl_road_sign"
-            filterApplied="QCVN 41:2019/BGTVT"
             lastUpdated={summary?.lastUpdated}
             detailUrl="/assets?datasetKey=tbl_road_sign"
             detailText="Tra cứu biển báo"
@@ -770,8 +703,6 @@ export const DashboardPage: React.FC = () => {
             icon={<CompassOutlined />}
             color="#fa8c16"
             bgColor="#fff7e6"
-            sourceDataset="mst_national_road"
-            filterApplied="Tuyến Quốc lộ chính thức"
             lastUpdated={summary?.lastUpdated}
             detailUrl="/reports"
             detailText="Thống kê tuyến"
@@ -788,8 +719,6 @@ export const DashboardPage: React.FC = () => {
             icon={<AppstoreOutlined />}
             color="#13c2c2"
             bgColor="#e6fffb"
-            sourceDataset="dataset_registry"
-            filterApplied="Toàn bộ danh mục hệ thống"
             lastUpdated={summary?.lastUpdated}
             detailUrl="/catalogs"
             detailText="Xem danh mục"
@@ -806,8 +735,6 @@ export const DashboardPage: React.FC = () => {
             icon={<FolderOpenOutlined />}
             color="#722ed1"
             bgColor="#f9f0ff"
-            sourceDataset="document_metadata (MinIO)"
-            filterApplied="Hồ sơ hoàn công & cầu lớn"
             lastUpdated={summary?.lastUpdated}
             detailUrl="/documents"
             detailText="Mở kho tài liệu"
@@ -833,8 +760,6 @@ export const DashboardPage: React.FC = () => {
             children: (
               <SectionCardWrapper
                 title="Bảng Phân bổ Tài sản theo Đơn vị & Chi nhánh Quản lý"
-                sourceDataset="mv_dashboard_branch_stats, tbl_bridge, tbl_road_sign, raw_dataset_record"
-                filterApplied="Group by branch_id (4 Khu QLĐB & các Sở GTVT địa phương)"
                 lastUpdated={branches?.[0]?.lastUpdated || summary?.lastUpdated}
                 detailUrl="/assets"
                 detailText="Tra cứu toàn bộ tài sản"
@@ -871,8 +796,6 @@ export const DashboardPage: React.FC = () => {
               <div>
                 <SectionCardWrapper
                   title="Thống kê Toàn diện Biển báo Giao thông Đường bộ"
-                  sourceDataset={roadSigns?.sourceDataset || 'tbl_road_sign, raw_dataset_record'}
-                  filterApplied={roadSigns?.filter || 'QCVN 41:2019/BGTVT - Phân loại theo Khu QLĐB & Nhóm biển báo'}
                   lastUpdated={roadSigns?.lastUpdated}
                   detailUrl="/assets?datasetKey=tbl_road_sign"
                   detailText="Tra cứu danh sách biển báo"
@@ -1000,8 +923,6 @@ export const DashboardPage: React.FC = () => {
               <div>
                 <SectionCardWrapper
                   title="Thống kê Chiều dài Mạng lưới Tuyến Quốc lộ Toàn quốc"
-                  sourceDataset={roadLengths?.sourceDataset || 'mst_national_road, view_dashboard_national_road_stats'}
-                  filterApplied={roadLengths?.filter || 'Toàn bộ 168 tuyến Quốc lộ chính'}
                   lastUpdated={roadLengths?.lastUpdated}
                   detailUrl="/reports"
                   detailText="Xem báo cáo chi tiết mạng lưới"
@@ -1099,8 +1020,6 @@ export const DashboardPage: React.FC = () => {
                 <Col xs={24} lg={12}>
                   <SectionCardWrapper
                     title="Top 10 Tập Dữ liệu Quy mô lớn nhất"
-                    sourceDataset="dataset_registry"
-                    filterApplied="Top 10 Physical Asset Datasets"
                     lastUpdated={datasets?.[0]?.lastUpdated}
                     detailUrl="/assets"
                     detailText="Tra cứu 658 tập dữ liệu"
@@ -1130,8 +1049,6 @@ export const DashboardPage: React.FC = () => {
                 <Col xs={24} lg={12}>
                   <SectionCardWrapper
                     title="Nhật ký Nạp & Cập nhật Tài sản Gần nhất"
-                    sourceDataset="raw_dataset_record, dataset_registry"
-                    filterApplied="10 bản ghi nạp gần nhất có timestamp"
                     lastUpdated={recentAssets?.[0]?.importedAt}
                     detailUrl="/assets"
                     detailText="Xem bảng tra cứu"

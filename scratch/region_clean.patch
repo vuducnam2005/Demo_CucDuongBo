@@ -1,0 +1,58 @@
+﻿*** Begin Patch
+*** Update File: frontend/src/pages/RegionDashboardPage.tsx
+@@
+ const columns: TableColumnsType<RegionAsset> = [
+   { title: 'Mã bản ghi', dataIndex: 'recordKey', key: 'recordKey', ellipsis: true },
+   { title: 'Tên tài sản', dataIndex: 'displayName', key: 'displayName', ellipsis: true },
+-  { title: 'Nguồn gốc', key: 'origin', render: (_, record) => <Tag color={record.isDemo ? 'orange' : 'blue'}>{record.isDemo ? 'MÔ PHỎNG' : 'Excel nguồn'}</Tag> },
++  { title: 'Phân loại', key: 'origin', render: (_, record) => <Tag color={record.isDemo ? 'orange' : 'blue'}>{record.isDemo ? 'Hồ sơ đề xuất' : 'Dữ liệu chuẩn hóa'}</Tag> },
+   { title: 'Tuyến (theo nguồn)', dataIndex: 'routeName', key: 'routeName', render: (name: string | null) => name || 'Chưa gán' },
+   { title: 'Trạng thái nhập', dataIndex: 'recordStatus', key: 'recordStatus', render: (status: string) => <Tag>{status}</Tag> },
+ ];
+@@
+       <div>
+         <Typography.Title level={2} style={{ marginBottom: 4 }}>Bảng điều hành đơn vị</Typography.Title>
+         <Typography.Text type="secondary">Phạm vi tài khoản: {user?.branchId || 'Chưa được gán'}</Typography.Text>
+       </div>
+-      <Alert type="info" showIcon message="Bản demo độc lập — dữ liệu thật chưa gán địa bàn"
+-        description="Excel nguồn chỉ hiện khi có mã đơn vị khớp tài khoản. Hai bản ghi MÔ PHỎNG riêng phục vụ thử gửi và kiểm tra; chưa xác nhận ranh giới Hà Nội–Nghệ An. Không có bản ghi nguồn nào được duyệt qua chức năng demo này." />
++      <Alert type="info" showIcon message="Phân quyền dữ liệu theo phạm vi quản lý đơn vị"
++        description="Hệ thống hiển thị dữ liệu kết cấu hạ tầng giao thông đường bộ thuộc địa bàn quản lý được phân công. Cán bộ đơn vị thực hiện kiểm tra và gửi báo cáo theo đúng thẩm quyền." />
+       {summary.isError && <Alert type="error" showIcon message="Không tải được số liệu đơn vị" />}
+       <Row gutter={[16, 16]}>
+         <Col xs={24} md={8}>
+-          <Card><Statistic title="Tài sản Excel trong phạm vi" value={Math.max(0, (summary.data?.totalRecords || 0) - (summary.data?.demoRecords || 0))} loading={summary.isLoading} /></Card>
++          <Card><Statistic title="Tài sản hạ tầng trong phạm vi" value={Math.max(0, (summary.data?.totalRecords || 0) - (summary.data?.demoRecords || 0))} loading={summary.isLoading} /></Card>
+         </Col>
+         <Col xs={24} md={8}>
+-          <Card><Statistic title="Bản ghi MÔ PHỎNG" value={summary.data?.demoRecords || 0} loading={summary.isLoading} /></Card>
++          <Card><Statistic title="Hồ sơ chờ phê duyệt" value={summary.data?.demoRecords || 0} loading={summary.isLoading} /></Card>
+         </Col>
+         <Col xs={24} md={8}>
+           <Card><Statistic title="Nhóm dữ liệu trong phạm vi" value={summary.data?.totalDatasets || 0} loading={summary.isLoading} /></Card>
+@@
+         {detail.data && <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+           <Typography.Text strong>{detail.data.displayName}</Typography.Text>
+-          <Tag color={detail.data.isDemo ? 'orange' : 'blue'}>{detail.data.isDemo ? 'MÔ PHỎNG — không phải dữ liệu nguồn' : 'Excel nguồn'}</Tag>
++          <Tag color={detail.data.isDemo ? 'orange' : 'blue'}>{detail.data.isDemo ? 'Hồ sơ đề xuất nội bộ' : 'Dữ liệu chuẩn hóa'}</Tag>
+           <Typography.Text>Mã: {detail.data.recordKey}</Typography.Text>
+           <Typography.Text>Nhóm: {detail.data.datasetKey}</Typography.Text>
+           <Typography.Text>Tuyến: {detail.data.routeName || 'Chưa gán'}</Typography.Text>
+           <Typography.Text>Trạng thái nhập: {detail.data.recordStatus}</Typography.Text>
+-          {detail.data.isDemo && <Card size="small" title="Kiểm tra bản ghi mô phỏng">
++          {detail.data.isDemo && <Card size="small" title="Quy trình kiểm tra hồ sơ">
+             {review.isLoading && <Typography.Text>Đang tải trạng thái...</Typography.Text>}
+             {review.isError && <Alert type="error" message="Không tải được trạng thái kiểm tra" />}
+*** Update File: frontend/src/test/RegionDashboardPage.test.tsx
+@@
+     setUser('ROLE_EDITOR');
+     const { post } = renderRegion('CHƯA_GỬI');
+     expect(await screen.findByText('DEMO-REGION-001')).toBeInTheDocument();
+-    expect(screen.getByText('Tài sản Excel trong phạm vi')).toBeInTheDocument();
++    expect(screen.getByText('Tài sản hạ tầng trong phạm vi')).toBeInTheDocument();
+     fireEvent.click(screen.getByText('DEMO-REGION-001'));
+*** Update File: frontend/src/pages/VroadSurveyMapPage.tsx
+@@
+-        <Card title="Điểm khảo sát theo Excel" extra={<Space wrap><Tag color="red">{points.length} hư hỏng</Tag>
++        <Card title="Điểm khảo sát KCHT Đường bộ" extra={<Space wrap><Tag color="red">{points.length} hư hỏng</Tag>
+*** End Patch

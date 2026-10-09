@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider } from 'antd';
@@ -31,9 +31,14 @@ vi.mock('../services/catalogApi', () => ({
 
 vi.mock('../services/documentApi', () => ({
   fetchDocumentFolders: vi.fn(),
+  fetchDocumentBranches: vi.fn(),
   createDocumentFolder: vi.fn(),
+  renameDocumentFolder: vi.fn(),
+  deleteDocumentFolder: vi.fn(),
   fetchDocuments: vi.fn(),
   fetchDocumentById: vi.fn(),
+  fetchDocumentVersions: vi.fn(),
+  uploadDocumentVersion: vi.fn(),
   downloadDocumentFile: vi.fn(),
   uploadDocumentFile: vi.fn(),
   deleteDocumentFile: vi.fn(),
@@ -292,6 +297,15 @@ describe('Phase 10 Frontend Pages Integration Tests', () => {
 
   describe('DocumentExplorerPage', () => {
     it('renders folder tree and documents list with download action', async () => {
+      vi.mocked(documentApi.fetchDocumentBranches).mockResolvedValue(['moc_dbvn']);
+      vi.mocked(documentApi.fetchDocumentVersions).mockResolvedValue([{
+        versionNumber: 1,
+        fileName: 'Ho_so_thiet_ke_cau_Bai_Chay.pdf',
+        fileSize: 1048576,
+        uploadedBy: 'admin',
+        changeNote: null,
+        uploadedAt: '2026-03-15T08:00:00Z',
+      }]);
       vi.mocked(documentApi.fetchDocumentFolders).mockResolvedValue([
         {
           id: '1',
@@ -299,6 +313,7 @@ describe('Phase 10 Frontend Pages Integration Tests', () => {
           folderName: 'Hồ sơ Cục Đường bộ',
           parentId: '#',
           documentCount: 15,
+          branchId: 'moc_dbvn',
         },
       ]);
 
@@ -331,6 +346,40 @@ describe('Phase 10 Frontend Pages Integration Tests', () => {
       expect(await screen.findByText('Hồ sơ Cục Đường bộ')).toBeInTheDocument();
       expect(await screen.findByText('Ho_so_thiet_ke_cau_Bai_Chay.pdf')).toBeInTheDocument();
       expect(await screen.findByText('1.0 MB')).toBeInTheDocument();
+      fireEvent.click(screen.getAllByText('Hồ sơ Cục Đường bộ')[0]);
+      await waitFor(() => expect(documentApi.fetchDocuments).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: '1' })
+      ));
+      vi.mocked(documentApi.renameDocumentFolder).mockResolvedValue({
+        id: '1', folderCode: 'cdb_vn', folderName: 'Hồ sơ mới', parentId: '#',
+        documentCount: 15, branchId: 'moc_dbvn',
+      });
+      expect(screen.getByRole('button', { name: 'Xóa thư mục Hồ sơ Cục Đường bộ' })).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', { name: 'Đổi tên thư mục Hồ sơ Cục Đường bộ' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Tên thư mục mới' }), {
+        target: { value: 'Hồ sơ mới' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+      await waitFor(() => expect(documentApi.renameDocumentFolder).toHaveBeenCalledWith('1', 'Hồ sơ mới'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Lịch sử Ho_so_thiet_ke_cau_Bai_Chay.pdf' }));
+      expect(await screen.findByText('v1')).toBeInTheDocument();
+    });
+
+    it('allows deleting only an empty folder', async () => {
+      vi.mocked(documentApi.fetchDocumentBranches).mockResolvedValue(['moc_dbvn']);
+      vi.mocked(documentApi.fetchDocumentFolders).mockResolvedValue([{
+        id: '27', folderCode: 'empty', folderName: 'Hồ sơ trống', parentId: '#',
+        documentCount: 0, branchId: 'moc_dbvn',
+      }]);
+      vi.mocked(documentApi.fetchDocuments).mockResolvedValue({
+        content: [], page: 0, size: 15, totalElements: 0, totalPages: 0,
+      });
+      vi.mocked(documentApi.deleteDocumentFolder).mockResolvedValue();
+      renderWithProviders(<DocumentExplorerPage />);
+      fireEvent.click(await screen.findByText('Hồ sơ trống'));
+      fireEvent.click(screen.getByRole('button', { name: 'Xóa thư mục Hồ sơ trống' }));
+      fireEvent.click(await screen.findByRole('button', { name: /^Xóa$/ }));
+      await waitFor(() => expect(documentApi.deleteDocumentFolder).toHaveBeenCalledWith('27'));
     });
   });
 });

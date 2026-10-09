@@ -14,20 +14,19 @@ import {
   Input,
   Select,
   Drawer,
+  Modal,
   Descriptions,
   Tooltip,
   Alert,
   Tabs,
-  Badge,
   App,
   Popconfirm,
   List,
   Grid,
+  Spin,
 } from 'antd';
 import {
   CompassOutlined,
-  BuildOutlined,
-  AlertOutlined,
   DatabaseOutlined,
   ExportOutlined,
   ReloadOutlined,
@@ -62,6 +61,7 @@ import {
 import { AssetFormModal } from '../components/assets/AssetFormModal';
 import { AssetImportModal } from '../components/assets/AssetImportModal';
 import { EmptyState, StandardPagination, TableSkeleton } from '../components/common';
+import { fetchVroadAsset, trustedSourceImage } from '../services/vroadApi';
 
 const { Title, Text, Paragraph } = Typography;
 const { useBreakpoint } = Grid;
@@ -95,7 +95,25 @@ const DYNAMIC_COLUMN_ALLOWLIST: DynamicColumnConfig[] = [
   { fieldName: 'width', label: 'Chiều rộng', width: 120 },
   { fieldName: 'height', label: 'Chiều cao', width: 120 },
   { fieldName: 'type', label: 'Phân loại', width: 150 },
+  { fieldName: 'asset_type', label: 'Loại tài sản', width: 180 },
+  { fieldName: 'category', label: 'Nhóm tài sản', width: 170 },
+  { fieldName: 'condition', label: 'Tình trạng khảo sát', width: 160 },
+  { fieldName: 'chainage', label: 'Lý trình khảo sát', width: 150 },
 ];
+
+const ROAD_SOURCE_LABELS: Record<string, string> = {
+  name_vi: 'Tên tuyến', name_en: 'Tên tiếng Anh', road_number: 'Mã chính',
+  road_number_supplement: 'Mã phụ', branch_number: 'Mã nhánh',
+  'vitridiemdau-kmlytrinh': 'Lý trình đầu', 'vitridiemcuoi-kmlytrinh': 'Lý trình cuối',
+  actual_length: 'Chiều dài thực tế (km)', province_from_id: 'Mã tỉnh điểm đầu',
+  province_to_id: 'Mã tỉnh điểm cuối', donvinhaplieu: 'Mã đơn vị nhập', note: 'Ghi chú',
+  category: 'Nhóm tài sản', asset_type: 'Loại tài sản', condition: 'Tình trạng',
+  route_name: 'Tuyến khảo sát', chainage: 'Lý trình', asset_side: 'Phía tài sản',
+  survey_date: 'Ngày khảo sát', latitude: 'Vĩ độ', longitude: 'Kinh độ',
+  route_side: 'Chiều tuyến', town_from_id: 'Mã địa phương điểm đầu',
+  town_to_id: 'Mã địa phương điểm cuối', parentid: 'Mã đối tượng cha',
+  vidagis_id: 'Mã Vidagis', source_status: 'Trạng thái nguồn',
+};
 
 const TECHNICAL_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   RAW_STORED: { label: 'Đã lưu dữ liệu thô', color: 'blue' },
@@ -228,7 +246,7 @@ export const AssetListPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Selected dataset from URL or default to vertical slice tbl_road_sign
-  const initialDataset = searchParams.get('datasetKey') || 'tbl_road_sign';
+  const initialDataset = searchParams.get('datasetKey') || 'vroad_assets';
   const initialBranch = searchParams.get('branch') || '';
 
   const [selectedDatasetKey, setSelectedDatasetKey] = useState<string>(initialDataset);
@@ -246,6 +264,7 @@ export const AssetListPage: React.FC = () => {
   // Record detail drawer state
   const [detailRecord, setDetailRecord] = useState<RecordItem | null>(null);
   const [drawerVisible, setDrawerVisible] = useState<boolean>(false);
+  const [assetZoomed, setAssetZoomed] = useState(false);
 
   // Tree state for lazy-loading
   const [treeData, setTreeData] = useState<DatasetTreeNode[]>([]);
@@ -403,6 +422,14 @@ export const AssetListPage: React.FC = () => {
     retry: shouldRetryQuery,
   });
 
+  const assetPointQuery = useQuery({
+    queryKey: ['vroadAssetPoint', detailRecord?.id],
+    queryFn: () => fetchVroadAsset(detailRecord!.id),
+    enabled: drawerVisible && detailRecord?.datasetKey === 'vroad_assets',
+    retry: shouldRetryQuery,
+  });
+  const assetImageUrl = trustedSourceImage(assetPointQuery.data?.sourceImageUrl || null);
+
   // Handle tree selection
   const handleTreeSelect = (selectedKeys: Key[], info: { node: DatasetTreeNode }) => {
     if (selectedKeys.length > 0) {
@@ -461,7 +488,11 @@ export const AssetListPage: React.FC = () => {
   const getRecordDisplayName = (record: RecordItem): string => {
     const p = record.payload;
     if (!p) return record.recordKey;
-    const name = toDisplayString(p.fielddisplay) ?? toDisplayString(p.name) ?? toDisplayString(p.text);
+    if (record.datasetKey === 'vroad_assets' && p.asset_type) {
+      return [p.asset_type, p.route_name, p.chainage].map(toDisplayString).filter(Boolean).join(' · ');
+    }
+    const name = toDisplayString(p.fielddisplay) ?? toDisplayString(p.name_vi)
+      ?? toDisplayString(p.name) ?? toDisplayString(p.text);
     if (name) return name;
     return record.recordKey;
   };
@@ -641,7 +672,7 @@ export const AssetListPage: React.FC = () => {
           render: (_, record) => renderAttribute(record.payload, 'location_id'),
         }
       );
-    } else if (selectedDatasetKey === 'mst_national_road') {
+    } else if (selectedDatasetKey === 'mst_national_road' || selectedDatasetKey === 'mst_national_expressway') {
       cols.push(
         {
           title: 'Mã số tuyến',
@@ -695,9 +726,10 @@ export const AssetListPage: React.FC = () => {
                 type="link"
                 size="small"
                 icon={<EnvironmentOutlined style={{ color: '#52c41a' }} />}
-                onClick={() =>
-                  navigate(`/map?dataset=${selectedDatasetKey}&id=${record.recordKey}&lat=${coords.lat}&lng=${coords.lon}`)
-                }
+                onClick={() => navigate(record.datasetKey === 'vroad_assets'
+                  ? `/map?assetRecordId=${record.id}`
+                  : record.datasetKey === 'vroad_defects' ? `/map?defectRecordId=${record.id}`
+                  : `/map/assets?dataset=${selectedDatasetKey}&id=${record.recordKey}&lat=${coords.lat}&lng=${coords.lon}`)}
               >
                 Mở GIS
               </Button>
@@ -762,7 +794,7 @@ export const AssetListPage: React.FC = () => {
           Cây Tài sản & Danh mục Hồ sơ KCHT Đường bộ
         </Title>
         <Paragraph type="secondary" style={{ margin: '4px 0 0 0', fontSize: 13 }}>
-          Tra cứu phân cấp 658 tập dữ liệu, cấu hình cột động theo metadata, tìm kiếm và phân trang server-side.
+          Tra cứu tài sản khảo sát và tuyến đường đã nhập, tìm kiếm và phân trang.
         </Paragraph>
       </div>
 
@@ -781,45 +813,18 @@ export const AssetListPage: React.FC = () => {
             className="kcht-card"
             style={{ borderRadius: 8 }}
           >
-            {/* 3 Vertical Slice Shortcut Buttons */}
             <div style={{ marginBottom: 12 }}>
               <Text strong style={{ fontSize: 11, color: '#8c8c8c', display: 'block', marginBottom: 6 }}>
-                CHỌN NHANH VERTICAL SLICE:
+                TRUY CẬP NHANH
               </Text>
               <Space direction="vertical" style={{ width: '100%' }} size={6}>
-                <Button
-                  block
-                  size="small"
-                  type={selectedDatasetKey === 'tbl_road_sign' ? 'primary' : 'default'}
-                  icon={<AlertOutlined />}
-                  onClick={() => handleSelectVerticalSlice('tbl_road_sign')}
-                  style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                >
-                  <span>Biển báo đường bộ</span>
-                  <Badge count="222k" style={{ backgroundColor: '#52c41a' }} />
-                </Button>
-                <Button
-                  block
-                  size="small"
-                  type={selectedDatasetKey === 'mst_national_road' ? 'primary' : 'default'}
-                  icon={<CompassOutlined />}
-                  onClick={() => handleSelectVerticalSlice('mst_national_road')}
-                  style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                >
-                  <span>Đường quốc lộ</span>
-                  <Badge count="169" style={{ backgroundColor: '#fa8c16' }} />
-                </Button>
-                <Button
-                  block
-                  size="small"
-                  type={selectedDatasetKey === 'tbl_bridge' ? 'primary' : 'default'}
-                  icon={<BuildOutlined />}
-                  onClick={() => handleSelectVerticalSlice('tbl_bridge')}
-                  style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-                >
-                  <span>Cầu đường bộ</span>
-                  <Badge count="11.6k" style={{ backgroundColor: '#1677ff' }} />
-                </Button>
+                {treeData.flatMap((group) => group.children ?? [])
+                  .filter((dataset) => ['vroad_assets', 'mst_national_road', 'mst_national_expressway',
+                    'tbl_road_sign', 'tbl_bridge'].includes(dataset.datasetKey ?? ''))
+                  .map((dataset) => <Button key={dataset.key} block size="small"
+                    type={selectedDatasetKey === dataset.datasetKey ? 'primary' : 'default'}
+                    onClick={() => handleSelectVerticalSlice(dataset.datasetKey!)}
+                    style={{ textAlign: 'left' }}>{dataset.title}</Button>)}
               </Space>
             </div>
 
@@ -906,8 +911,7 @@ export const AssetListPage: React.FC = () => {
                   )}
                 </Space>
                 <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
-                  Tệp nguồn: <code>{metadata?.sourceFile || `${selectedDatasetKey}.json`}</code> | Tổng
-                  số:{' '}
+                  Tổng số:{' '}
                   <strong>
                     {recordsData
                       ? `${recordsData.totalElements.toLocaleString('vi-VN')} bản ghi`
@@ -1186,7 +1190,7 @@ export const AssetListPage: React.FC = () => {
         }
         placement="right"
         width={screens.md ? 680 : '100%'}
-        onClose={() => setDrawerVisible(false)}
+        onClose={() => { setDrawerVisible(false); setAssetZoomed(false); }}
         open={drawerVisible}
         extra={
           <Space>
@@ -1244,6 +1248,62 @@ export const AssetListPage: React.FC = () => {
                       </Descriptions.Item>
                     </Descriptions>
 
+                    {['mst_national_road', 'mst_national_expressway', 'vroad_assets'].includes(selectedDatasetKey) &&
+                      <Descriptions bordered size="small" column={1} style={{ marginTop: 20 }}>
+                        {Object.entries(ROAD_SOURCE_LABELS).filter(([key]) =>
+                          toDisplayString(detailRecord.payload?.[key]) !== null).map(([key, label]) =>
+                          <Descriptions.Item key={key} label={label}>
+                            {toDisplayString(detailRecord.payload?.[key])}
+                          </Descriptions.Item>)}
+                      </Descriptions>}
+
+                    {selectedDatasetKey === 'vroad_assets' && assetPointQuery.data?.roadCatalog &&
+                      <Descriptions bordered size="small" column={1} title="Danh mục toàn tuyến" style={{ marginTop: 20 }}>
+                        <Descriptions.Item label="Tên tuyến">{assetPointQuery.data.roadCatalog.name}</Descriptions.Item>
+                        {assetPointQuery.data.roadCatalog.lengthKm &&
+                          <Descriptions.Item label="Chiều dài toàn tuyến">
+                            {assetPointQuery.data.roadCatalog.lengthKm} km
+                          </Descriptions.Item>}
+                        {assetPointQuery.data.roadCatalog.startChainage &&
+                          <Descriptions.Item label="Lý trình đầu">
+                            {assetPointQuery.data.roadCatalog.startChainage}
+                          </Descriptions.Item>}
+                        {assetPointQuery.data.roadCatalog.endChainage &&
+                          <Descriptions.Item label="Lý trình cuối">
+                            {assetPointQuery.data.roadCatalog.endChainage}
+                          </Descriptions.Item>}
+                      </Descriptions>}
+
+                    {selectedDatasetKey === 'vroad_assets' && <Card size="small" title="Ảnh tài sản khảo sát"
+                      style={{ marginTop: 20 }}>
+                      {assetPointQuery.isLoading && <Spin size="small" />}
+                      {assetPointQuery.isError && <Alert type="warning" showIcon
+                        message={getApiErrorMessage(assetPointQuery.error)} />}
+                      {!assetPointQuery.isLoading && !assetPointQuery.isError && !assetImageUrl &&
+                        <Text type="secondary">Tài sản này chưa có liên kết ảnh.</Text>}
+                      {assetImageUrl && <Space direction="vertical" style={{ width: '100%' }}>
+                        <div role="button" tabIndex={0} aria-label="Phóng to ảnh tài sản"
+                          onClick={() => setAssetZoomed(true)}
+                          onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault(); setAssetZoomed(true);
+                          } }} style={{ position: 'relative', cursor: 'zoom-in' }}>
+                          <iframe title={`Ảnh tài sản ${detailRecord.recordKey}`} src={assetImageUrl}
+                            sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer" loading="lazy"
+                            tabIndex={-1} style={{ width: '100%', height: 270, pointerEvents: 'none',
+                              border: '1px solid #d7e0ec' }} />
+                          <Tag style={{ position: 'absolute', right: 8, bottom: 8 }}>Nhấn để phóng to</Tag>
+                        </div>
+                        <a href={assetImageUrl} target="_blank" rel="noopener noreferrer"
+                          referrerPolicy="no-referrer">Mở ảnh nguồn</a>
+                      </Space>}
+                    </Card>}
+
+                    {selectedDatasetKey === 'vroad_assets' &&
+                      <Button style={{ marginTop: 12 }} onClick={() =>
+                        navigate(`/documents?asset=${encodeURIComponent(detailRecord.recordKey)}`)}>
+                        Tra cứu hồ sơ tài sản
+                      </Button>}
+
                     {/* Detailed attributes table from data_ */}
                     {getPayloadAttributes(detailRecord.payload).length > 0 && (
                       <div style={{ marginTop: 20 }}>
@@ -1293,6 +1353,8 @@ export const AssetListPage: React.FC = () => {
                           <Descriptions.Item label="Vĩ độ Y (Latitude)">
                             {getCoordinates(detailRecord)?.lat}
                           </Descriptions.Item>
+                          {['x_min', 'y_min', 'x_max', 'y_max'].some((field) =>
+                            resolveAttribute(detailRecord.payload, field).kind !== 'unmapped') &&
                           <Descriptions.Item label="Khung bao (BBOX)">
                             <Space wrap>
                               <span>x_min: {renderAttribute(detailRecord.payload, 'x_min')}</span>
@@ -1300,7 +1362,7 @@ export const AssetListPage: React.FC = () => {
                               <span>x_max: {renderAttribute(detailRecord.payload, 'x_max')}</span>
                               <span>y_max: {renderAttribute(detailRecord.payload, 'y_max')}</span>
                             </Space>
-                          </Descriptions.Item>
+                          </Descriptions.Item>}
                         </Descriptions>
 
                         <Button
@@ -1309,9 +1371,9 @@ export const AssetListPage: React.FC = () => {
                           icon={<CompassOutlined />}
                           onClick={() => {
                             const coords = getCoordinates(detailRecord);
-                            navigate(
-                              `/map?dataset=${selectedDatasetKey}&id=${detailRecord.recordKey}&lat=${coords?.lat}&lng=${coords?.lon}`
-                            );
+                            navigate(selectedDatasetKey === 'vroad_assets'
+                              ? `/map?assetRecordId=${detailRecord.id}`
+                              : `/map?dataset=${selectedDatasetKey}&id=${detailRecord.recordKey}&lat=${coords?.lat}&lng=${coords?.lon}`);
                           }}
                         >
                           Mở Định vị trên Bản đồ Số WebGIS
@@ -1369,6 +1431,12 @@ export const AssetListPage: React.FC = () => {
           />
         )}
       </Drawer>
+      <Modal title={`Ảnh tài sản ${detailRecord?.recordKey || ''}`} open={assetZoomed && !!assetImageUrl}
+        footer={null} width="min(96vw, 1200px)" onCancel={() => setAssetZoomed(false)}>
+        {assetImageUrl && <iframe title="Ảnh tài sản phóng to" src={assetImageUrl}
+          sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
+          style={{ width: '100%', height: '75vh', border: 0 }} />}
+      </Modal>
 
       {/* CRUD Form Modal */}
       <AssetFormModal

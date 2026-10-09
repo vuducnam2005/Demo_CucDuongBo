@@ -6,6 +6,7 @@ export interface DocumentFolder {
   folderName: string;
   parentId: string;
   documentCount: number;
+  branchId: string;
 }
 
 export interface DocumentItem {
@@ -31,19 +32,45 @@ export interface PagedDocuments {
   totalPages: number;
 }
 
+export interface DocumentVersion {
+  versionNumber: number;
+  fileName: string;
+  fileSize: number;
+  uploadedBy: string | null;
+  changeNote: string | null;
+  uploadedAt: string;
+}
+
 export const fetchDocumentFolders = async (): Promise<DocumentFolder[]> => {
-  const response = await apiClient.get<DocumentFolder[]>('/api/documents/folders');
+  const response = await apiClient.get<DocumentFolder[]>('/api/local-documents/folders');
+  return response.data;
+};
+
+export const fetchDocumentBranches = async (): Promise<string[]> => {
+  const response = await apiClient.get<string[]>('/api/local-documents/branches');
   return response.data;
 };
 
 export const createDocumentFolder = async (
   folderName: string,
-  parentId?: string
+  parentId?: string,
+  branchId?: string
 ): Promise<DocumentFolder> => {
-  const response = await apiClient.post<DocumentFolder>('/api/documents/folders', null, {
-    params: { folderName, parentId },
+  const response = await apiClient.post<DocumentFolder>('/api/local-documents/folders', null, {
+    params: { folderName, parentId, branchId },
   });
   return response.data;
+};
+
+export const renameDocumentFolder = async (id: string, name: string): Promise<DocumentFolder> => {
+  const response = await apiClient.patch<DocumentFolder>(
+    `/api/local-documents/folders/${encodeURIComponent(id)}`, { name }
+  );
+  return response.data;
+};
+
+export const deleteDocumentFolder = async (id: string): Promise<void> => {
+  await apiClient.delete(`/api/local-documents/folders/${encodeURIComponent(id)}`);
 };
 
 export const fetchDocuments = async (params?: {
@@ -53,17 +80,39 @@ export const fetchDocuments = async (params?: {
   page?: number;
   size?: number;
 }): Promise<PagedDocuments> => {
-  const response = await apiClient.get<PagedDocuments>('/api/documents', { params });
+  const response = await apiClient.get<PagedDocuments>('/api/local-documents', {
+    params: { ...params, q: params?.search, search: undefined },
+  });
   return response.data;
 };
 
 export const fetchDocumentById = async (id: string): Promise<DocumentItem> => {
-  const response = await apiClient.get<DocumentItem>(`/api/documents/${encodeURIComponent(id)}`);
+  const response = await apiClient.get<DocumentItem>(`/api/local-documents/${encodeURIComponent(id)}`);
   return response.data;
 };
 
-export const downloadDocumentFile = async (id: string, fileName?: string): Promise<void> => {
-  const response = await apiClient.get(`/api/documents/${encodeURIComponent(id)}/file`, {
+export const fetchDocumentVersions = async (id: string): Promise<DocumentVersion[]> => {
+  const response = await apiClient.get<DocumentVersion[]>(`/api/local-documents/${encodeURIComponent(id)}/versions`);
+  return response.data;
+};
+
+export const uploadDocumentVersion = async (id: string, file: File, note: string): Promise<DocumentVersion> => {
+  const form = new FormData();
+  form.append('file', file);
+  if (note.trim()) form.append('note', note.trim());
+  const response = await apiClient.post<DocumentVersion>(
+    `/api/local-documents/${encodeURIComponent(id)}/versions`, form,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+};
+
+export const downloadDocumentFile = async (
+  id: string, fileName?: string, versionNumber?: number
+): Promise<void> => {
+  const path = `/api/local-documents/${encodeURIComponent(id)}`;
+  const response = await apiClient.get(
+    versionNumber === undefined ? `${path}/file` : `${path}/versions/${versionNumber}/file`, {
     responseType: 'blob',
   });
   const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -88,7 +137,7 @@ export const uploadDocumentFile = async (
   if (assetRecordId) formData.append('assetRecordId', assetRecordId);
   if (branchId) formData.append('branchId', branchId);
 
-  const response = await apiClient.post<DocumentItem>('/api/documents/upload', formData, {
+  const response = await apiClient.post<DocumentItem>('/api/local-documents/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -97,5 +146,10 @@ export const uploadDocumentFile = async (
 };
 
 export const deleteDocumentFile = async (id: string): Promise<void> => {
-  await apiClient.delete(`/api/documents/${encodeURIComponent(id)}`);
+  await apiClient.delete(`/api/local-documents/${encodeURIComponent(id)}`);
+};
+
+export const renameDocumentFile = async (id: string, name: string): Promise<DocumentItem> => {
+  const response = await apiClient.patch<DocumentItem>(`/api/local-documents/${encodeURIComponent(id)}`, { name });
+  return response.data;
 };

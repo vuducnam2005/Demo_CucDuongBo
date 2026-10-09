@@ -5,12 +5,14 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 import vn.gov.drvn.kcht.dto.ErrorResponseDto;
 
 import java.util.ArrayList;
@@ -20,6 +22,15 @@ import java.util.List;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ErrorResponseDto> handleResponseStatus(ResponseStatusException ex,
+                                                                   HttpServletRequest request) {
+        HttpStatusCode status = ex.getStatusCode();
+        ErrorResponseDto error = new ErrorResponseDto(status.value(),
+                HttpStatus.valueOf(status.value()).getReasonPhrase(), ex.getReason(), request.getRequestURI());
+        return ResponseEntity.status(status).body(error);
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
