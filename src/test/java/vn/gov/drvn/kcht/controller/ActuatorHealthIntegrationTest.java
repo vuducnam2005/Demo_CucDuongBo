@@ -27,4 +27,20 @@ class ActuatorHealthIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
     }
+
+    @Test
+    @DisplayName("Kiểm tra endpoint / phản hồi HTTP 200 và status UP (dành cho UptimeRobot / Load balancer)")
+    void testRootEndpoint() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    @DisplayName("Kiểm tra endpoint /health phản hồi HTTP 200 và status UP")
+    void testHealthEndpoint() throws Exception {
+        mockMvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
 }

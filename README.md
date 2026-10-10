@@ -101,13 +101,27 @@ Xem `docs/source-guide-review.md`, `docs/assumptions.md`, `docs/status.md` trư�
 - **Quản trị Người dùng (RBAC):** `GET /api/auth/users`, `POST /api/auth/users`
 - **Nhật ký Kiểm toán (Audit):** `GET /api/audit-logs`
 - **Danh mục tập dữ liệu hiện có:** `http://localhost:8089/api/datasets`
-- **MinIO Console:** `http://localhost:9011` (User: `kcht_minio_user`)
+- **MinIO Console:** `http://localhost:9011` (User: `kcht_minio_user` / Password: `OHSohyYiMCWxdmF4OP2Tu-P9RAhwXQDxbYbRn17gCsWl_eg4XaDI1g`)
 
-### Tài khoản mẫu đăng nhập (mật khẩu xem trong `.env` cục bộ):
-- **Quản trị viên (`ROLE_ADMIN`):** `admin` / `<cấp qua kênh bảo mật>`
-- **Lãnh đạo (`ROLE_MANAGER`):** `manager_demo` / `<cấp qua kênh bảo mật>`
-- **Chuyên viên Kỹ thuật (`ROLE_EDITOR`):** `editor_demo` / `<cấp qua kênh bảo mật>`
-- **Cán bộ Tra cứu (`ROLE_VIEWER`):** `viewer_demo` / `<cấp qua kênh bảo mật>`
+### Tài khoản đăng nhập mẫu:
+
+#### 1. Tài khoản Web & API (http://localhost:3000):
+| Vai trò | Tên đăng nhập (`username`) | Mật khẩu hiện tại (`.env`) | Mật khẩu mặc định (Bộ Test / Seed gốc) | Quyền hạn & Phạm vi |
+| :--- | :--- | :--- | :--- | :--- |
+| **Quản trị viên (`ROLE_ADMIN`)** | `admin` | `Tuanhung24@` | `Admin@2026!` | Toàn quyền quản trị hệ thống, dữ liệu, audit log, người dùng. |
+| **Lãnh đạo đơn vị (`ROLE_MANAGER`)** | `manager_demo` | `Tuanhung24@` | `Manager@2026!` | Xem dashboard, duyệt/xác nhận hư hỏng, quản lý hồ sơ theo đơn vị (`kqldb_1`). |
+| **Chuyên viên kỹ thuật (`ROLE_EDITOR`)** | `editor_demo` | `Tuanhung24@` | `Editor@2026!` | Cập nhật dữ liệu, tải lên hồ sơ, gửi bản ghi kiểm tra (`kqldb_1`). |
+| **Cán bộ tra cứu (`ROLE_VIEWER`)** | `viewer_demo` | `Tuanhung24@` | `Viewer@2026!` | Chế độ chỉ đọc: tra cứu dữ liệu, xem bản đồ WebGIS, xem báo cáo. |
+
+> *Lưu ý về mật khẩu:* 
+> - Mật khẩu gốc trong mã nguồn và bộ kiểm thử tự động (integration tests) là **`Admin@2026!`**, **`Manager@2026!`**, **`Editor@2026!`**, **`Viewer@2026!`**.
+> - Trong file `.env` cục bộ hiện tại, cả 4 tài khoản đang được cấu hình dùng chung mật khẩu **`Tuanhung24@`**. Nếu chạy ứng dụng cục bộ, hệ thống sẽ ưu tiên nhận mật khẩu từ `.env` (hoặc bạn có thể sửa lại trong `.env`).
+
+#### 2. Tài khoản Dịch vụ Hạ tầng (PostgreSQL & MinIO):
+| Dịch vụ | Địa chỉ kết nối | Tên đăng nhập / Database | Mật khẩu |
+| :--- | :--- | :--- | :--- |
+| **PostgreSQL 16 (PostGIS)** | `localhost:5436` | User: `kcht_user` / DB: `kcht_db` | `wJgj7gEF-Bbfx75aPTw7CqnkOCS1hbQXTtHphC1eZq9BbULBEg6QoA` |
+| **MinIO Console** | `http://localhost:9011` | User: `kcht_minio_user` | `OHSohyYiMCWxdmF4OP2Tu-P9RAhwXQDxbYbRn17gCsWl_eg4XaDI1g` |
 
 ---
 

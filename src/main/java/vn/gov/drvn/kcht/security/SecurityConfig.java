@@ -71,8 +71,10 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/logout"
                         ).permitAll()
-                        // Actuator và Swagger Documentation công khai
+                        // Actuator, Root/Health probes và Swagger Documentation công khai
                         .requestMatchers(
+                                "/",
+                                "/health",
                                 "/actuator/health",
                                 "/actuator/info",
                                 "/v3/api-docs/**",

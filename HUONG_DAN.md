@@ -140,17 +140,17 @@ Màn hình terminal xuất hiện thông báo:
 
 Mở trình duyệt truy cập vào [**http://localhost:3000**](http://localhost:3000) và đăng nhập bằng một trong các tài khoản sau:
 
-| Vai trò người dùng | Tên đăng nhập (`username`) | Mật khẩu mặc định (`password`) | Quyền hạn và phạm vi thao tác |
-| :--- | :---: | :---: | :--- |
-| **Quản trị viên (ADMIN)** | `admin` | `<cấp qua kênh bảo mật>` | **Toàn quyền cao nhất**: Thêm, sửa, xóa tài sản, nạp tệp CSV/JSON (Import), xuất báo cáo, xem vết kiểm toán `audit_log`, quản trị tài khoản người dùng. |
-| **Lãnh đạo đơn vị (MANAGER)** | `manager_demo` | `<cấp qua kênh bảo mật>` | Xem Dashboard điều hành, duyệt báo cáo thống kê, quản lý danh mục tham chiếu, tạo cây thư mục hồ sơ tài liệu. |
-| **Chuyên viên kỹ thuật (EDITOR)** | `editor_demo` | `<cấp qua kênh bảo mật>` | Thêm mới và cập nhật thông tin thuộc tính tài sản công trình; **bị chặn xóa** (403 Forbidden). |
-| **Cán bộ tra cứu (VIEWER)** | `viewer_demo` | `<cấp qua kênh bảo mật>` | **Chế độ chỉ đọc (Read-only)**: Tra cứu danh sách, xem bản đồ số WebGIS, xem báo cáo; ẩn các nút thêm/sửa/xóa. |
+| Vai trò người dùng | Tên đăng nhập (`username`) | Mật khẩu hiện tại (`.env`) | Mật khẩu gốc (Test / Seed) | Quyền hạn và phạm vi thao tác |
+| :--- | :---: | :---: | :---: | :--- |
+| **Quản trị viên (ADMIN)** | `admin` | `Tuanhung24@` | `Admin@2026!` | **Toàn quyền cao nhất**: Thêm, sửa, xóa tài sản, nạp tệp CSV/JSON (Import), xuất báo cáo, xem vết kiểm toán `audit_log`, quản trị tài khoản người dùng. |
+| **Lãnh đạo đơn vị (MANAGER)** | `manager_demo` | `Tuanhung24@` | `Manager@2026!` | Xem Dashboard điều hành, duyệt báo cáo thống kê, quản lý danh mục tham chiếu, tạo cây thư mục hồ sơ tài liệu. |
+| **Chuyên viên kỹ thuật (EDITOR)** | `editor_demo` | `Tuanhung24@` | `Editor@2026!` | Thêm mới và cập nhật thông tin thuộc tính tài sản công trình; **bị chặn xóa** (403 Forbidden). |
+| **Cán bộ tra cứu (VIEWER)** | `viewer_demo` | `Tuanhung24@` | `Viewer@2026!` | **Chế độ chỉ đọc (Read-only)**: Tra cứu danh sách, xem bản đồ số WebGIS, xem báo cáo; ẩn các nút thêm/sửa/xóa. |
 
 #### Tài khoản Bảng điều khiển MinIO Console:
 - Địa chỉ: [http://localhost:9011](http://localhost:9011)
 - **Tên đăng nhập**: `kcht_minio_user`
-- **Mật khẩu**: `<cấp qua kênh bảo mật, không lưu trong tài liệu>`
+- **Mật khẩu**: `OHSohyYiMCWxdmF4OP2Tu-P9RAhwXQDxbYbRn17gCsWl_eg4XaDI1g`
 
 ---
 
