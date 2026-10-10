@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, Col, Input, Modal, Row, Segmented, Select, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Col, Input, Modal, Row, Segmented, Select, Space, Spin, Tag, Typography, Statistic, Tooltip } from 'antd';
+import {
+  AimOutlined,
+  CompassOutlined,
+  EnvironmentOutlined,
+  InfoCircleOutlined,
+  PieChartOutlined,
+  RightOutlined,
+  ThunderboltOutlined,
+  WarningOutlined,
+  CheckCircleOutlined,
+} from '@ant-design/icons';
 import Map from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -460,21 +471,125 @@ export const VroadSurveyMapPage = () => {
   const assetImageUrl = trustedSourceImage(selectedAsset?.sourceImageUrl || null);
   const relatedDefects = selectedAsset?.relatedDefects || [];
 
+  const resetMapView = () => {
+    map.current?.getView().animate({
+      center: fromLonLat([109.18, 13.55]),
+      zoom: 9,
+      duration: 500,
+    });
+  };
+
+  const defectSummary = points.reduce<{ type: string; count: number }[]>((acc, point) => {
+    const type = point.defectType || 'Hư hỏng khác';
+    const found = acc.find((item) => item.type === type);
+    if (found) {
+      found.count += 1;
+    } else {
+      acc.push({ type, count: 1 });
+    }
+    return acc;
+  }, []).sort((a, b) => b.count - a.count).slice(0, 5);
+
   return <Space direction="vertical" size="large" style={{ width: '100%' }}>
-    <div>
-      <Title level={2} style={{ marginBottom: 2 }}>Bản đồ hư hỏng VroadAI</Title>
-      <Text type="secondary">Chọn điểm đỏ (hư hỏng) hoặc xanh (tài sản) để xem thông tin và ảnh của đúng điểm đó.</Text>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+      <div>
+        <Space align="center" style={{ marginBottom: 4 }} wrap>
+          <Title level={2} style={{ margin: 0 }}>Bản đồ hư hỏng VroadAI</Title>
+          <Tag color="geekblue" style={{ borderRadius: 10, padding: '2px 10px', fontSize: 12 }}>WebGIS Trực quan hóa AI</Tag>
+        </Space>
+        <Text type="secondary" style={{ display: 'block', fontSize: 13 }}>
+          Chọn điểm đỏ (hư hỏng) hoặc xanh (tài sản) để xem thông tin và ảnh của đúng điểm đó.
+        </Text>
+      </div>
+      {user?.role === 'ROLE_ADMIN' && <Space wrap>
+        <Button icon={<CompassOutlined />} onClick={() => navigate('/map/assets')}>Bản đồ tài sản cũ</Button>
+        <Button icon={<CheckCircleOutlined />} onClick={() => navigate('/cases')}>Hồ sơ đã xử lý</Button>
+      </Space>}
     </div>
-    {user?.role === 'ROLE_ADMIN' && <Space><Button onClick={() => navigate('/map/assets')}>Bản đồ tài sản cũ</Button><Button onClick={() => navigate('/cases')}>Hồ sơ đã xử lý</Button></Space>}
+
+    {/* Thẻ chỉ số tổng quan nhanh */}
+    <Row gutter={[16, 16]}>
+      <Col xs={12} sm={6}>
+        <Card size="small" style={{ borderRadius: 10, background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+          <Statistic
+            title={<Text type="secondary" style={{ fontSize: 12 }}>Hư hỏng phát hiện</Text>}
+            value={points.length}
+            prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
+            suffix={<Text type="secondary" style={{ fontSize: 12 }}>vị trí</Text>}
+            valueStyle={{ fontSize: 20, fontWeight: 600, color: '#cf1322' }}
+          />
+        </Card>
+      </Col>
+      <Col xs={12} sm={6}>
+        <Card size="small" style={{ borderRadius: 10, background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+          <Statistic
+            title={<Text type="secondary" style={{ fontSize: 12 }}>Tài sản khảo sát</Text>}
+            value={assets.length}
+            prefix={<EnvironmentOutlined style={{ color: '#1677ff' }} />}
+            suffix={<Text type="secondary" style={{ fontSize: 12 }}>điểm</Text>}
+            valueStyle={{ fontSize: 20, fontWeight: 600, color: '#0958d9' }}
+          />
+        </Card>
+      </Col>
+      <Col xs={12} sm={6}>
+        <Card size="small" style={{ borderRadius: 10, background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+          <Statistic
+            title={<Text type="secondary" style={{ fontSize: 12 }}>Tuyến khảo sát chính</Text>}
+            value="QL.1"
+            prefix={<CompassOutlined style={{ color: '#52c41a' }} />}
+            suffix={<Text type="secondary" style={{ fontSize: 12 }}>(Bình Định - Phú Yên)</Text>}
+            valueStyle={{ fontSize: 18, fontWeight: 600, color: '#389e0d' }}
+          />
+        </Card>
+      </Col>
+      <Col xs={12} sm={6}>
+        <Card size="small" style={{ borderRadius: 10, background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+          <Statistic
+            title={<Text type="secondary" style={{ fontSize: 12 }}>Trạng thái tải dữ liệu</Text>}
+            value={truncated || assetsTruncated ? 'Giới hạn 500' : 'Đầy đủ'}
+            prefix={<ThunderboltOutlined style={{ color: '#fa8c16' }} />}
+            suffix={<Text type="secondary" style={{ fontSize: 12 }}>điểm/lớp</Text>}
+            valueStyle={{ fontSize: 18, fontWeight: 600, color: '#d46b08' }}
+          />
+        </Card>
+      </Col>
+    </Row>
+
     <Row gutter={[16, 16]}>
       <Col xs={24} lg={15}>
-        <Card title="Điểm khảo sát KCHT Đường bộ" extra={<Space wrap><Tag color="red">{points.length} hư hỏng</Tag>
-          <Tag color="blue">{assets.length} tài sản</Tag>
-          {(truncated || assetsTruncated) && <Tag color="orange">Giới hạn 500 điểm mỗi loại — phóng to để xem thêm</Tag>}</Space>}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-            <Segmented aria-label="Lớp bản đồ" value={mapLayer}
-              options={[{ label: 'Tất cả', value: 'all' }, { label: 'Hư hỏng', value: 'defects' },
-                { label: 'Tài sản', value: 'assets' }]}
+        <Card
+          title={
+            <Space>
+              <CompassOutlined style={{ color: '#1677ff', fontSize: 16 }} />
+              <span style={{ fontWeight: 600 }}>Điểm khảo sát KCHT Đường bộ</span>
+            </Space>
+          }
+          extra={
+            <Space wrap>
+              <Tag color="red" style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}>
+                {points.length} hư hỏng
+              </Tag>
+              <Tag color="blue" style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}>
+                {assets.length} tài sản
+              </Tag>
+              {(truncated || assetsTruncated) && (
+                <Tag color="orange" style={{ borderRadius: 12, padding: '2px 10px' }}>
+                  Giới hạn 500 điểm mỗi loại — phóng to để xem thêm
+                </Tag>
+              )}
+            </Space>
+          }
+          style={{ borderRadius: 10, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+            <Segmented
+              aria-label="Lớp bản đồ"
+              value={mapLayer}
+              options={[
+                { label: 'Tất cả', value: 'all' },
+                { label: 'Hư hỏng', value: 'defects' },
+                { label: 'Tài sản', value: 'assets' },
+              ]}
               onChange={(value) => {
                 setMapLayer(value as 'all' | 'defects' | 'assets');
                 ++clickSequence.current;
@@ -486,50 +601,201 @@ export const VroadSurveyMapPage = () => {
                 setAssetZoomed(false);
                 setError(null);
                 setIsLoading(false);
-              }} />
-            <Space size="small">
+              }}
+            />
+            <Space size="small" wrap>
               <Text type="secondary" style={{ fontSize: 13 }}>Nền bản đồ:</Text>
               <Select
                 aria-label="Chọn nền bản đồ"
                 value={basemapKey}
                 onChange={setBasemapKey}
-                style={{ width: 180 }}
+                style={{ width: 175 }}
                 options={VROAD_BASEMAP_OPTIONS.map((opt) => ({
                   value: opt.key,
                   label: opt.label,
                 }))}
               />
+              <Tooltip title="Khôi phục toàn cảnh tuyến đường khảo sát">
+                <Button icon={<AimOutlined />} onClick={resetMapView}>Toàn cảnh</Button>
+              </Tooltip>
             </Space>
           </div>
-          <div ref={root} data-testid="vroad-map" style={{ height: 570, width: '100%', background: '#edf2f6' }} />
-          <Input.Search aria-label="Tìm điểm trong khung bản đồ" placeholder="Tìm mã điểm hoặc tài sản trong khung bản đồ"
-            value={lookup} onChange={(event) => setLookup(event.target.value)} enterButton="Xem điểm"
-            onSearch={(value) => {
-              const found = mapLayer === 'assets' ? undefined : pointsRef.current.find((point) =>
-                point.recordKey.toLowerCase() === value.trim().toLowerCase());
-              if (found) selectPoint(found);
-              else {
-                const asset = mapLayer === 'defects' ? undefined : assetsRef.current.find((point) =>
+
+          <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+            <div ref={root} data-testid="vroad-map" style={{ height: 600, width: '100%', background: '#edf2f6' }} />
+
+            {/* Bảng chú giải Map Legend */}
+            <div style={{
+              position: 'absolute',
+              bottom: 12,
+              left: 12,
+              background: 'rgba(255, 255, 255, 0.94)',
+              backdropFilter: 'blur(8px)',
+              padding: '6px 12px',
+              borderRadius: 6,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              border: '1px solid rgba(0,0,0,0.06)',
+              display: 'flex',
+              gap: 14,
+              alignItems: 'center',
+              fontSize: 12,
+              zIndex: 10,
+            }}>
+              <Space size={6}>
+                <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#ff4d4f' }} />
+                <span>Hư hỏng VroadAI</span>
+              </Space>
+              <Space size={6}>
+                <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#1677ff' }} />
+                <span>Tài sản KCHT</span>
+              </Space>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <Input.Search
+              aria-label="Tìm điểm trong khung bản đồ"
+              placeholder="Tìm mã điểm hoặc tài sản trong khung bản đồ"
+              value={lookup}
+              onChange={(event) => setLookup(event.target.value)}
+              enterButton="Xem điểm"
+              onSearch={(value) => {
+                const found = mapLayer === 'assets' ? undefined : pointsRef.current.find((point) =>
                   point.recordKey.toLowerCase() === value.trim().toLowerCase());
-                if (asset) {
-                  map.current?.getView().animate({ center: fromLonLat([asset.longitude, asset.latitude]),
-                    zoom: 16, duration: 350 });
-                  void openAsset(asset.recordId);
-                } else setError('Không tìm thấy mã trong khung bản đồ. Hãy di chuyển bản đồ hoặc phóng to.');
-              }
-            }} style={{ marginTop: 12, maxWidth: 420 }} />
+                if (found) selectPoint(found);
+                else {
+                  const asset = mapLayer === 'defects' ? undefined : assetsRef.current.find((point) =>
+                    point.recordKey.toLowerCase() === value.trim().toLowerCase());
+                  if (asset) {
+                    map.current?.getView().animate({ center: fromLonLat([asset.longitude, asset.latitude]),
+                      zoom: 16, duration: 350 });
+                    void openAsset(asset.recordId);
+                  } else setError('Không tìm thấy mã trong khung bản đồ. Hãy di chuyển bản đồ hoặc phóng to.');
+                }
+              }}
+              style={{ maxWidth: 440 }}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              💡 Nhấp vào điểm trên bản đồ hoặc nhập mã để định vị tức thì
+            </Text>
+          </div>
         </Card>
       </Col>
+
       <Col xs={24} lg={9}>
-        <Card title="Thông tin tại tọa độ">
-          {isLoading && <Spin />}
+        <Card
+          title={
+            <Space>
+              <InfoCircleOutlined style={{ color: '#1677ff' }} />
+              <span style={{ fontWeight: 600 }}>Thông tin tại tọa độ</span>
+            </Space>
+          }
+          style={{ borderRadius: 10, border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', minHeight: 720 }}
+        >
+          {isLoading && (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <Spin size="large" />
+              <div style={{ marginTop: 12, color: '#8c8c8c' }}>Đang tải dữ liệu khảo sát...</div>
+            </div>
+          )}
           {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />}
-          {!selected && !selectedAsset && !isLoading && <Text type="secondary">Chọn một điểm đánh dấu trên bản đồ để xem đúng đoạn khảo sát và ảnh hư hỏng.</Text>}
+
+          {!selected && !selectedAsset && !isLoading && (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div style={{ padding: '12px 14px', borderRadius: 8, background: '#f0f7ff', border: '1px solid #bae0ff' }}>
+                <Space align="start">
+                  <InfoCircleOutlined style={{ color: '#1677ff', marginTop: 3 }} />
+                  <Text type="secondary" style={{ fontSize: 13, color: '#003a8c' }}>
+                    Chọn một điểm đánh dấu trên bản đồ để xem đúng đoạn khảo sát và ảnh hư hỏng.
+                  </Text>
+                </Space>
+              </div>
+
+              {/* Phân loại hư hỏng */}
+              <Card
+                size="small"
+                title={
+                  <Space>
+                    <PieChartOutlined style={{ color: '#ff4d4f' }} />
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>Thống kê nhóm hư hỏng</span>
+                  </Space>
+                }
+                style={{ borderRadius: 8 }}
+              >
+                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  {defectSummary.length > 0 ? (
+                    defectSummary.map((item) => (
+                      <div
+                        key={item.type}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px dashed #f0f0f0' }}
+                      >
+                        <Text style={{ fontSize: 13 }}>{item.type}</Text>
+                        <Tag color="red" style={{ borderRadius: 10, margin: 0 }}>{item.count} điểm</Tag>
+                      </div>
+                    ))
+                  ) : (
+                    <Text type="secondary" style={{ fontSize: 12 }}>Đang cập nhật phân loại...</Text>
+                  )}
+                </Space>
+              </Card>
+
+              {/* Danh sách điểm hư hỏng truy cập nhanh */}
+              {points.length > 0 && (
+                <Card
+                  size="small"
+                  title={
+                    <Space>
+                      <EnvironmentOutlined style={{ color: '#fa8c16' }} />
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>Điểm khảo sát nổi bật (Truy cập nhanh)</span>
+                    </Space>
+                  }
+                  style={{ borderRadius: 8 }}
+                >
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    {points.slice(0, 4).map((point) => (
+                      <div
+                        key={point.recordId}
+                        onClick={() => selectPoint(point)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter') selectPoint(point); }}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          background: '#fafafa',
+                          border: '1px solid #f0f0f0',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#e6f4ff'; e.currentTarget.style.borderColor = '#91caff'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#fafafa'; e.currentTarget.style.borderColor = '#f0f0f0'; }}
+                      >
+                        <div>
+                          <Text strong style={{ fontSize: 13, color: '#1677ff' }}>{point.recordKey}</Text>
+                          <div style={{ fontSize: 12, color: '#8c8c8c' }}>{point.defectType || 'Hư hỏng'} · {point.routeName || 'QL.1'}</div>
+                        </div>
+                        <Button size="small" type="link" icon={<RightOutlined />}>Xem</Button>
+                      </div>
+                    ))}
+                  </Space>
+                </Card>
+              )}
+            </Space>
+          )}
+
           {selectedAsset && <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Text>Tọa độ: {selectedAsset.latitude.toFixed(6)}, {selectedAsset.longitude.toFixed(6)} (WGS84)</Text>
-            <Text strong>Tuyến: {selectedAsset.routeName || 'Chưa rõ'}</Text>
-            <Text>Lý trình: {selectedAsset.chainage || 'Chưa rõ'} · Chiều tuyến: {selectedAsset.routeSide || 'Chưa rõ'}</Text>
-            <Card size="small" title={selectedAsset.assetType || selectedAsset.recordKey}>
+            <div style={{ background: '#e6f4ff', padding: '10px 14px', borderRadius: 8, border: '1px solid #91caff' }}>
+              <Text strong style={{ color: '#0958d9' }}>📍 Tọa độ tài sản (WGS84):</Text>
+              <div><Text copyable style={{ fontSize: 13 }}>{selectedAsset.latitude.toFixed(6)}, {selectedAsset.longitude.toFixed(6)}</Text></div>
+            </div>
+            <div style={{ background: '#fafafa', padding: '10px 14px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+              <Text strong>Tuyến: {selectedAsset.routeName || 'Chưa rõ'}</Text>
+              <div><Text>Lý trình: {selectedAsset.chainage || 'Chưa rõ'} · Chiều tuyến: {selectedAsset.routeSide || 'Chưa rõ'}</Text></div>
+            </div>
+            <Card size="small" title={<Space><Tag color="blue">Tài sản</Tag><span>{selectedAsset.assetType || selectedAsset.recordKey}</span></Space>} style={{ borderRadius: 8 }}>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Text>Mã: {selectedAsset.recordKey}</Text>
                 <Text>Nhóm tài sản: {selectedAsset.category || 'Chưa phân loại'}</Text>
@@ -542,26 +808,28 @@ export const VroadSurveyMapPage = () => {
                     onClick={() => setAssetZoomed(true)}
                     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault(); setAssetZoomed(true);
-                    } }} style={{ position: 'relative', cursor: 'zoom-in', width: '100%' }}>
+                    } }} style={{ position: 'relative', cursor: 'zoom-in', width: '100%', borderRadius: 8, overflow: 'hidden', border: '1px solid #d9d9d9' }}>
                     <iframe title={`Ảnh tài sản ${selectedAsset.recordKey}`} src={assetImageUrl}
                       sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1}
-                      style={{ width: '100%', height: 240, border: '1px solid #ddd', pointerEvents: 'none' }} />
-                    <Tag style={{ position: 'absolute', bottom: 10, right: 8 }}>Nhấn để phóng to</Tag>
+                      style={{ width: '100%', height: 240, border: 0, pointerEvents: 'none' }} />
+                    <Tag color="blue" style={{ position: 'absolute', bottom: 10, right: 8 }}>🔍 Nhấn để phóng to</Tag>
                   </div>
                   <a href={assetImageUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Mở ảnh nguồn</a>
                 </> : <Text type="secondary">Chưa có ảnh tài sản.</Text>}
-                <Button size="small" onClick={() => navigate('/assets?datasetKey=vroad_assets')}>Xem danh sách tài sản</Button>
-                <Button size="small" onClick={() =>
-                  navigate(`/documents?asset=${encodeURIComponent(selectedAsset.recordKey)}`)}>
-                  Tra cứu hồ sơ tài sản
-                </Button>
-                {!showRelatedDefects && <Button size="small" loading={loadingRelated} onClick={() => void openRelated()}>
-                  Xem hư hỏng gần tài sản
-                </Button>}
+                <Space wrap>
+                  <Button size="small" onClick={() => navigate('/assets?datasetKey=vroad_assets')}>Xem danh sách tài sản</Button>
+                  <Button size="small" onClick={() =>
+                    navigate(`/documents?asset=${encodeURIComponent(selectedAsset.recordKey)}`)}>
+                    Tra cứu hồ sơ tài sản
+                  </Button>
+                  {!showRelatedDefects && <Button size="small" loading={loadingRelated} onClick={() => void openRelated()}>
+                    Xem hư hỏng gần tài sản
+                  </Button>}
+                </Space>
               </Space>
             </Card>
             {showRelatedDefects && <Card size="small" title="Hư hỏng ghi nhận gần tài sản"
-              extra={<Button size="small" onClick={() => setShowRelatedDefects(false)}>Thu gọn</Button>}>
+              extra={<Button size="small" onClick={() => setShowRelatedDefects(false)}>Thu gọn</Button>} style={{ borderRadius: 8 }}>
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 {relatedDefects.length === 0 && <Text type="secondary">Chưa ghi nhận hư hỏng trùng tuyến, lý trình và phía tài sản trong phạm vi khảo sát.</Text>}
                 {selectedAsset.relatedDefectsTruncated && <Text type="secondary">
@@ -569,7 +837,7 @@ export const VroadSurveyMapPage = () => {
                 </Text>}
                 {relatedDefects.map((defect) => {
                   const defectImageUrl = trustedSourceImage(defect.sourceImageUrl);
-                  return <Card key={defect.recordId} size="small" title={defect.defectType || defect.recordKey}>
+                  return <Card key={defect.recordId} size="small" title={defect.defectType || defect.recordKey} style={{ borderRadius: 6 }}>
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
                       <Text>Mã hư hỏng: {defect.recordKey} · Phía: {defect.defectSide || 'Chưa rõ'}</Text>
                       <Text>Ngày khảo sát: {defect.surveyDate || 'Chưa rõ'}</Text>
@@ -581,11 +849,11 @@ export const VroadSurveyMapPage = () => {
                           onClick={() => setZoomed(defect)}
                           onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault(); setZoomed(defect);
-                          } }} style={{ cursor: 'zoom-in', width: '100%' }}>
+                          } }} style={{ cursor: 'zoom-in', width: '100%', borderRadius: 6, overflow: 'hidden', border: '1px solid #d9d9d9' }}>
                           <iframe title={`Ảnh khảo sát ${defect.recordKey}`} src={defectImageUrl}
                             sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
                             loading="lazy" tabIndex={-1} style={{ width: '100%', height: 240,
-                              border: '1px solid #ddd', pointerEvents: 'none' }} />
+                              border: 0, pointerEvents: 'none' }} />
                         </div>
                         <a href={defectImageUrl} target="_blank" rel="noopener noreferrer"
                           referrerPolicy="no-referrer">Mở ảnh nguồn</a>
@@ -597,14 +865,20 @@ export const VroadSurveyMapPage = () => {
               </Space>
             </Card>}
           </Space>}
+
           {selected && <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Text>Tọa độ: {selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)} (WGS84)</Text>
+            <div style={{ background: '#f6ffed', padding: '10px 14px', borderRadius: 8, border: '1px solid #b7eb8f' }}>
+              <Text strong style={{ color: '#389e0d' }}>📍 Tọa độ khảo sát (WGS84):</Text>
+              <div><Text copyable style={{ fontSize: 13 }}>{selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}</Text></div>
+            </div>
             {selectedPoint ? <>
-              <Text strong>Tuyến: {selectedPoint.routeName || 'Chưa rõ'}</Text>
-              <Text>Lý trình: {selectedPoint.chainage || 'Chưa rõ'} · Chiều tuyến: {selectedPoint.routeSide || 'Chưa rõ'}</Text>
-              <Text>Tài sản khảo sát lân cận: {selected.nearbyAssets}</Text>
+              <div style={{ background: '#fafafa', padding: '10px 14px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+                <Text strong>Tuyến: {selectedPoint.routeName || 'Chưa rõ'}</Text>
+                <div><Text>Lý trình: {selectedPoint.chainage || 'Chưa rõ'} · Chiều tuyến: {selectedPoint.routeSide || 'Chưa rõ'}</Text></div>
+                <div><Text type="secondary">Tài sản khảo sát lân cận: {selected.nearbyAssets}</Text></div>
+              </div>
               {selected.roadCatalog && <RoadCatalogCard road={selected.roadCatalog} />}
-              <Card size="small" title={selectedPoint.defectType || selectedPoint.recordKey}>
+              <Card size="small" title={<Space><Tag color="red">Hư hỏng</Tag><span>{selectedPoint.defectType || selectedPoint.recordKey}</span></Space>} style={{ borderRadius: 8 }}>
                 <Space direction="vertical" size="small">
                   <Text>Mã: {selectedPoint.recordKey}; phía hư hỏng: {selectedPoint.defectSide || 'Chưa rõ'}</Text>
                   <Text>Ngày khảo sát: {selectedPoint.surveyDate || 'Chưa rõ'}</Text>
@@ -615,12 +889,12 @@ export const VroadSurveyMapPage = () => {
                     <div role="button" tabIndex={0} aria-label={`Phóng to ảnh hư hỏng ${selectedPoint.recordKey}`}
                       onClick={() => setZoomed(selectedPoint)}
                       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setZoomed(selectedPoint); } }}
-                      style={{ position: 'relative', cursor: 'zoom-in', width: '100%' }}>
+                      style={{ position: 'relative', cursor: 'zoom-in', width: '100%', borderRadius: 8, overflow: 'hidden', border: '1px solid #d9d9d9' }}>
                       <iframe
                       title={`Ảnh khảo sát ${selectedPoint.recordKey}`} src={trustedSourceImage(selectedPoint.sourceImageUrl)!}
                       sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer" loading="lazy"
-                      tabIndex={-1} style={{ width: '100%', height: 240, border: '1px solid #ddd', pointerEvents: 'none' }} />
-                      <Tag style={{ position: 'absolute', bottom: 10, right: 8 }}>Nhấn để phóng to</Tag>
+                      tabIndex={-1} style={{ width: '100%', height: 240, border: 0, pointerEvents: 'none' }} />
+                      <Tag color="blue" style={{ position: 'absolute', bottom: 10, right: 8 }}>🔍 Nhấn để phóng to</Tag>
                     </div>
                     <a href={trustedSourceImage(selectedPoint.sourceImageUrl)!} target="_blank"
                       rel="noopener noreferrer" referrerPolicy="no-referrer">Mở ảnh nguồn</a>
