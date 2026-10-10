@@ -86,9 +86,9 @@ export const LoginPage: React.FC = () => {
           <Title level={3} style={{ color: '#ffffff', margin: 0, fontWeight: 700 }}>
             QUẢN LÝ HẠ TẦNG ĐƯỜNG BỘ
           </Title>
-          <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 14 }}>
+          {/* <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 14 }}>
             Bản demo độc lập — không phải trang đăng nhập của Cục Đường bộ Việt Nam
-          </Text>
+          </Text> */}
         </Space>
       </div>
 
@@ -167,10 +167,10 @@ export const LoginPage: React.FC = () => {
       </Card>
 
       <div style={{ marginTop: 24, textAlign: 'center', maxWidth: 440 }}>
-        <Paragraph style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: 12, margin: 0 }}>
+        {/* <Paragraph style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: 12, margin: 0 }}>
           Đây là môi trường thử nghiệm độc lập. Dữ liệu nguồn chưa được duyệt QC và không được
           coi là số liệu công bố chính thức.
-        </Paragraph>
+        </Paragraph> */}
       </div>
     </div>
   );
