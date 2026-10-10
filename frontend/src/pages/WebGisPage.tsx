@@ -319,8 +319,6 @@ export const WebGisPage: React.FC = () => {
       [selectedDataset]: { state: 'loading' },
     }));
     try {
-      vectorSourceRef.current.clear();
-
       if (shouldUseCluster) {
         const clusterRes = await fetchSpatialClusters(selectedDataset, {
           minLon,
@@ -346,6 +344,7 @@ export const WebGisPage: React.FC = () => {
           return olFeat;
         });
 
+        vectorSourceRef.current.clear();
         vectorSourceRef.current.addFeatures(olFeatures);
         setClusterCount(olFeatures.length);
         setFeatureCount(0);
@@ -378,6 +377,7 @@ export const WebGisPage: React.FC = () => {
           return olFeat;
         });
 
+        vectorSourceRef.current.clear();
         vectorSourceRef.current.addFeatures(olFeatures);
         setFeatureCount(olFeatures.length);
         setClusterCount(0);
@@ -484,15 +484,20 @@ export const WebGisPage: React.FC = () => {
       }
     });
 
-    // Sự kiện moveend để tự động fetch BBOX mới
+    let moveTimer: number | null = null;
+    // Sự kiện moveend để tự động fetch BBOX mới (debounce 250ms để cuộn/lia mượt mà)
     map.on('moveend', () => {
-      void refreshRef.current();
+      if (moveTimer) window.clearTimeout(moveTimer);
+      moveTimer = window.setTimeout(() => {
+        void refreshRef.current();
+      }, 250);
     });
 
     // Initial load
     void refreshRef.current();
 
     return () => {
+      if (moveTimer) window.clearTimeout(moveTimer);
       requestAbortRef.current?.abort();
       map.setTarget(undefined);
       mapInstanceRef.current = null;
