@@ -13,6 +13,7 @@ import {
   UserOutlined,
   LockOutlined,
   CheckCircleOutlined,
+  SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -20,7 +21,7 @@ import { LoginParams } from '../services/authApi';
 import { getApiErrorMessage, getHttpStatus } from '../services/api';
 import { VroadBrand } from '../components/brand/VroadBrand';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 export const LoginPage: React.FC = () => {
   const [form] = Form.useForm<LoginParams>();
@@ -42,9 +43,7 @@ export const LoginPage: React.FC = () => {
     } catch (err: unknown) {
       const status = getHttpStatus(err);
       if (status === 429) {
-        setErrorMessage(
-          'Tài khoản tạm thời bị khóa do nhập sai mật khẩu quá 5 lần liên tiếp. Vui lòng thử lại sau 15 phút.'
-        );
+        setErrorMessage('Đã vượt quá số lần thử đăng nhập cho phép. Vui lòng thử lại sau.');
       } else if (status === 401) {
         setErrorMessage('Tên đăng nhập hoặc mật khẩu không chính xác.');
       } else if (err instanceof Error && err.message === 'Network Error') {
@@ -61,34 +60,52 @@ export const LoginPage: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #001529 0%, #002766 50%, #003a8c 100%)',
+        background: 'radial-gradient(circle at 50% 20%, #002766 0%, #001529 60%, #000c17 100%)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '24px 16px',
+        padding: '32px 16px',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      <div style={{ maxWidth: 440, width: '100%', marginBottom: 24, textAlign: 'center' }}>
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+      {/* Decorative Glow Element */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '15%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 500,
+          height: 500,
+          background: 'radial-gradient(circle, rgba(22, 119, 255, 0.15) 0%, rgba(0, 0, 0, 0) 70%)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      <div style={{ maxWidth: 460, width: '100%', marginBottom: 28, textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <Space direction="vertical" size={6} style={{ width: '100%' }}>
           <div
             style={{
               display: 'inline-flex',
-              padding: 12,
-              borderRadius: '50%',
-              background: 'rgba(255, 255, 255, 0.1)',
-              backdropFilter: 'blur(8px)',
-              marginBottom: 8,
+              padding: '8px 20px',
+              borderRadius: 12,
+              background: 'rgba(255, 255, 255, 0.08)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)',
+              marginBottom: 12,
             }}
           >
             <VroadBrand inverse />
           </div>
-          <Title level={3} style={{ color: '#ffffff', margin: 0, fontWeight: 700 }}>
-            QUẢN LÝ HẠ TẦNG ĐƯỜNG BỘ
+          <div style={{ color: '#69b1ff', fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: 'uppercase' }}>
+            Cổng Thông Tin Điều Hành & Giám Sát
+          </div>
+          <Title level={3} style={{ color: '#ffffff', margin: 0, fontWeight: 700, letterSpacing: 0.5 }}>
+            QUẢN LÝ KẾT CẤU HẠ TẦNG ĐƯỜNG BỘ
           </Title>
-          {/* <Text style={{ color: 'rgba(255, 255, 255, 0.75)', fontSize: 14 }}>
-            Bản demo độc lập — không phải trang đăng nhập của Cục Đường bộ Việt Nam
-          </Text> */}
         </Space>
       </div>
 
@@ -96,17 +113,20 @@ export const LoginPage: React.FC = () => {
         style={{
           maxWidth: 440,
           width: '100%',
-          borderRadius: 12,
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: 16,
+          background: '#ffffff',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+          position: 'relative',
+          zIndex: 1,
         }}
+        bodyStyle={{ padding: '32px 28px' }}
       >
-        <div style={{ marginBottom: 20 }}>
-          <Title level={4} style={{ margin: 0 }}>
-            Đăng nhập hệ thống
+        <div style={{ marginBottom: 24, textAlign: 'center' }}>
+          <Title level={4} style={{ margin: 0, color: '#141414', fontWeight: 600 }}>
+            Đăng nhập tài khoản
           </Title>
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            Sử dụng tài khoản demo do quản trị viên cục bộ cấp
+          <Text type="secondary" style={{ fontSize: 13, marginTop: 4, display: 'block' }}>
+            Hệ thống Quản lý Kỹ thuật & Giám sát Hạ tầng
           </Text>
         </div>
 
@@ -115,39 +135,43 @@ export const LoginPage: React.FC = () => {
             type="error"
             showIcon
             message={errorMessage}
-            style={{ marginBottom: 20, borderRadius: 6 }}
+            style={{ marginBottom: 20, borderRadius: 8 }}
             closable
             onClose={() => setErrorMessage(null)}
           />
         )}
 
-        <Form form={form} layout="vertical" onFinish={handleFinish}>
+        <Form form={form} layout="vertical" onFinish={handleFinish} requiredMark={false}>
           <Form.Item
             name="username"
-            label="Tên đăng nhập"
+            label={<Text strong style={{ fontSize: 13 }}>Tên đăng nhập</Text>}
             rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập' }]}
+            style={{ marginBottom: 18 }}
           >
             <Input
-              prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
-              placeholder="Ví dụ: admin hoặc manager_demo"
+              prefix={<UserOutlined style={{ color: '#8c8c8c' }} />}
+              placeholder="Nhập tên đăng nhập"
               size="large"
               autoFocus
+              style={{ borderRadius: 8 }}
             />
           </Form.Item>
 
           <Form.Item
             name="password"
-            label="Mật khẩu"
+            label={<Text strong style={{ fontSize: 13 }}>Mật khẩu</Text>}
             rules={[{ required: true, message: 'Vui lòng nhập mật khẩu' }]}
+            style={{ marginBottom: 24 }}
           >
             <Input.Password
-              prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+              prefix={<LockOutlined style={{ color: '#8c8c8c' }} />}
               placeholder="Nhập mật khẩu"
               size="large"
+              style={{ borderRadius: 8 }}
             />
           </Form.Item>
 
-          <Form.Item style={{ marginBottom: 12 }}>
+          <Form.Item style={{ marginBottom: 8 }}>
             <Button
               type="primary"
               htmlType="submit"
@@ -155,22 +179,27 @@ export const LoginPage: React.FC = () => {
               block
               loading={submitting}
               icon={<CheckCircleOutlined />}
+              style={{
+                height: 44,
+                borderRadius: 8,
+                fontSize: 15,
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #1677ff 0%, #0958d9 100%)',
+                boxShadow: '0 4px 12px rgba(22, 119, 255, 0.35)',
+                border: 'none',
+              }}
             >
               Đăng nhập
             </Button>
           </Form.Item>
         </Form>
-
-        <Text type="secondary" style={{ display: 'block', marginTop: 16, textAlign: 'center' }}>
-          Vui lòng sử dụng tài khoản được cấp bởi quản trị viên hệ thống.
-        </Text>
       </Card>
 
-      <div style={{ marginTop: 24, textAlign: 'center', maxWidth: 440 }}>
-        {/* <Paragraph style={{ color: 'rgba(255, 255, 255, 0.65)', fontSize: 12, margin: 0 }}>
-          Đây là môi trường thử nghiệm độc lập. Dữ liệu nguồn chưa được duyệt QC và không được
-          coi là số liệu công bố chính thức.
-        </Paragraph> */}
+      <div style={{ marginTop: 28, textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <Space size={6} style={{ color: 'rgba(255, 255, 255, 0.45)', fontSize: 12 }}>
+          <SafetyCertificateOutlined />
+          <span>Hệ thống Quản lý Dữ liệu Kết cấu Hạ tầng Giao thông Đường bộ</span>
+        </Space>
       </div>
     </div>
   );
