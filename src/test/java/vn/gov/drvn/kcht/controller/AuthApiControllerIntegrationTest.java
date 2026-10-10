@@ -101,28 +101,22 @@ public class AuthApiControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("3. Rate Limit Login: Khóa tài khoản sau 5 lần nhập sai - Trả về HTTP 429 Too Many Requests")
-    void testLoginRateLimiting() throws Exception {
-        String testUser = "rate_limit_user";
+    @DisplayName("3. Đăng nhập sai nhiều lần liên tiếp không bị khóa tài khoản - Trả về HTTP 401 Unauthorized")
+    void testUnlimitedFailedLoginAttemptsWithoutLockout() throws Exception {
+        String testUser = "unlimited_attempts_user";
         loginRateLimiter.resetAttempts("127.0.0.1", testUser);
 
         LoginRequestDto badDto = new LoginRequestDto(testUser, "SaiMatKhau@123");
 
-        // Thử sai 5 lần đầu
-        for (int i = 1; i <= 5; i++) {
+        // Thử sai nhiều lần liên tiếp (10 lần) vẫn không bị khóa (HTTP 401, không bị chặn 429)
+        for (int i = 1; i <= 10; i++) {
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(badDto)))
-                    .andExpect(status().isUnauthorized());
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.status").value(401))
+                    .andExpect(jsonPath("$.message", containsString("không chính xác")));
         }
-
-        // Lần thứ 6 phải bị Rate Limit chặn ngay (HTTP 429)
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(badDto)))
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.message", containsString("vượt quá số lần đăng nhập sai")));
 
         // Dọn dẹp sau test
         loginRateLimiter.resetAttempts("127.0.0.1", testUser);

@@ -60,8 +60,9 @@ kcht:
       access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
       refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
     rate-limit:
-      login-max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
-      login-lockout-duration-ms: ${LOGIN_LOCKOUT_MS:900000}
+      enabled: ${LOGIN_RATE_LIMIT_ENABLED:false}
+      login-max-attempts: ${LOGIN_MAX_ATTEMPTS:0}
+      login-lockout-duration-ms: ${LOGIN_LOCKOUT_MS:0}
     cookie:
       name: ${REFRESH_COOKIE_NAME}
       secure: ${REFRESH_COOKIE_SECURE}

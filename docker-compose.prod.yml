@@ -169,8 +169,9 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Vui lòng cấu hình MINIO_ROOT_PASSWORD trong .env.production}
       MINIO_BUCKET: ${MINIO_BUCKET:-kcht-documents}
       ALLOW_ANONYMOUS_ADMIN: "false"
-      LOGIN_MAX_ATTEMPTS: 5
-      LOGIN_LOCKOUT_MS: 900000
+      LOGIN_RATE_LIMIT_ENABLED: "false"
+      LOGIN_MAX_ATTEMPTS: 0
+      LOGIN_LOCKOUT_MS: 0
     volumes:
       - kcht_prod_app_logs:/app/logs
     healthcheck:

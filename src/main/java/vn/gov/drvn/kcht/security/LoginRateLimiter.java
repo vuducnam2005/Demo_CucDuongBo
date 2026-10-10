@@ -13,13 +13,16 @@ public class LoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(LoginRateLimiter.class);
 
+    private final boolean enabled;
     private final int maxAttempts;
     private final long lockoutDurationMs;
     private final ConcurrentHashMap<String, AttemptInfo> attemptsMap = new ConcurrentHashMap<>();
 
     public LoginRateLimiter(
-            @Value("${kcht.security.rate-limit.login-max-attempts:5}") int maxAttempts,
-            @Value("${kcht.security.rate-limit.login-lockout-duration-ms:900000}") long lockoutDurationMs) {
+            @Value("${kcht.security.rate-limit.enabled:false}") boolean enabled,
+            @Value("${kcht.security.rate-limit.login-max-attempts:0}") int maxAttempts,
+            @Value("${kcht.security.rate-limit.login-lockout-duration-ms:0}") long lockoutDurationMs) {
+        this.enabled = enabled;
         this.maxAttempts = maxAttempts;
         this.lockoutDurationMs = lockoutDurationMs;
     }
@@ -44,6 +47,10 @@ public class LoginRateLimiter {
      * @throws TooManyRequestsException nếu bị khóa do vượt quá số lần thử
      */
     public void checkRateLimit(String clientIp, String username) {
+        if (!enabled || maxAttempts <= 0 || lockoutDurationMs <= 0) {
+            return;
+        }
+
         long now = System.currentTimeMillis();
         String ipKey = "ip:" + (clientIp != null ? clientIp : "unknown");
         String userKey = "user:" + (username != null ? username.toLowerCase().trim() : "unknown");
@@ -78,6 +85,10 @@ public class LoginRateLimiter {
      * Ghi nhận một lần đăng nhập thất bại.
      */
     public void recordFailedAttempt(String clientIp, String username) {
+        if (!enabled || maxAttempts <= 0 || lockoutDurationMs <= 0) {
+            return;
+        }
+
         long now = System.currentTimeMillis();
         String ipKey = "ip:" + (clientIp != null ? clientIp : "unknown");
         recordFailedForKey(ipKey, now);
@@ -113,6 +124,9 @@ public class LoginRateLimiter {
      * Đặt lại bộ đếm khi đăng nhập thành công.
      */
     public void resetAttempts(String clientIp, String username) {
+        if (!enabled || maxAttempts <= 0 || lockoutDurationMs <= 0) {
+            return;
+        }
         if (clientIp != null) {
             attemptsMap.remove("ip:" + clientIp);
         }

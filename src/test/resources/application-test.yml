@@ -26,8 +26,9 @@ kcht:
       access-token-expiration-ms: 900000
       refresh-token-expiration-ms: 604800000
     rate-limit:
-      login-max-attempts: 5
-      login-lockout-duration-ms: 900000
+      enabled: false
+      login-max-attempts: 0
+      login-lockout-duration-ms: 0
     cookie:
       name: kcht_refresh_token
       secure: false

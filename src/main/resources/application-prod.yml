@@ -67,8 +67,9 @@ kcht:
       domain: ${REFRESH_COOKIE_DOMAIN:}
       path: ${REFRESH_COOKIE_PATH:/}
     rate-limit:
-      login-max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
-      login-lockout-duration-ms: ${LOGIN_LOCKOUT_MS:900000}
+      enabled: ${LOGIN_RATE_LIMIT_ENABLED:false}
+      login-max-attempts: ${LOGIN_MAX_ATTEMPTS:0}
+      login-lockout-duration-ms: ${LOGIN_LOCKOUT_MS:0}
   storage:
     type: ${STORAGE_TYPE:local}
     local-path: ${STORAGE_LOCAL_PATH:/tmp/data/storage}
