@@ -67,9 +67,44 @@ const { Option } = Select;
 // Các tùy chọn lớp bản đồ nền (Basemap)
 const BASEMAP_OPTIONS = [
   {
-    key: 'osm',
-    label: 'OpenStreetMap (Giao thông)',
-    createSource: () => new OSM(),
+    key: 'google_road',
+    label: 'Google Maps (Đường bộ)',
+    createSource: () =>
+      new XYZ({
+        urls: [
+          'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        ],
+        attributions: '© Google Maps',
+        maxZoom: 20,
+      }),
+  },
+  {
+    key: 'google_hybrid',
+    label: 'Google Maps (Vệ tinh có nhãn)',
+    createSource: () =>
+      new XYZ({
+        urls: [
+          'https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          'https://mt2.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          'https://mt3.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        ],
+        attributions: '© Google Maps',
+        maxZoom: 20,
+      }),
+  },
+  {
+    key: 'carto_voyager',
+    label: 'CartoDB Voyager (Giao thông)',
+    createSource: () =>
+      new XYZ({
+        url: 'https://{a-c}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        attributions: '© CartoDB, © OpenStreetMap',
+        maxZoom: 19,
+      }),
   },
   {
     key: 'carto_light',
@@ -78,6 +113,7 @@ const BASEMAP_OPTIONS = [
       new XYZ({
         url: 'https://{a-c}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
         attributions: '© CartoDB, © OpenStreetMap',
+        maxZoom: 19,
       }),
   },
   {
@@ -87,6 +123,7 @@ const BASEMAP_OPTIONS = [
       new XYZ({
         url: 'https://{a-c}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
         attributions: '© CartoDB, © OpenStreetMap',
+        maxZoom: 19,
       }),
   },
   {
@@ -96,7 +133,13 @@ const BASEMAP_OPTIONS = [
       new XYZ({
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         attributions: '© Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19,
       }),
+  },
+  {
+    key: 'osm',
+    label: 'OpenStreetMap (Dự phòng)',
+    createSource: () => new OSM(),
   },
 ];
 
@@ -156,7 +199,7 @@ export const WebGisPage: React.FC = () => {
   const toastHistoryRef = useRef<globalThis.Map<string, number>>(new globalThis.Map());
 
   // States
-  const [activeBasemap, setActiveBasemap] = useState<string>('osm');
+  const [activeBasemap, setActiveBasemap] = useState<string>('google_road');
   const [selectedDataset, setSelectedDataset] = useState<string>('tbl_road_sign');
   const [autoClustering, setAutoClustering] = useState<boolean>(true);
   const [loadingData, setLoadingData] = useState<boolean>(false);

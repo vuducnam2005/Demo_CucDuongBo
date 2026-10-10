@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, Col, Input, Modal, Row, Segmented, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Col, Input, Modal, Row, Segmented, Select, Space, Spin, Tag, Typography } from 'antd';
 import Map from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -8,6 +8,8 @@ import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import OSM from 'ol/source/OSM';
+import XYZ from 'ol/source/XYZ';
+import 'ol/ol.css';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import { fromLonLat, transformExtent } from 'ol/proj';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -30,6 +32,64 @@ const RoadCatalogCard = ({ road }: { road: RoadCatalog }) =>
     </Space>
   </Card>;
 
+const VROAD_BASEMAP_OPTIONS = [
+  {
+    key: 'google_road',
+    label: '🗺️ Google Bản đồ',
+    createSource: () =>
+      new XYZ({
+        urls: [
+          'https://mt0.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://mt2.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          'https://mt3.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        ],
+        attributions: '© Google Maps',
+        maxZoom: 20,
+      }),
+  },
+  {
+    key: 'google_hybrid',
+    label: '🛰️ Google Vệ tinh',
+    createSource: () =>
+      new XYZ({
+        urls: [
+          'https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          'https://mt2.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          'https://mt3.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        ],
+        attributions: '© Google Maps',
+        maxZoom: 20,
+      }),
+  },
+  {
+    key: 'carto_voyager',
+    label: '🚗 Carto Giao thông',
+    createSource: () =>
+      new XYZ({
+        url: 'https://{a-c}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        attributions: '© CARTO, © OpenStreetMap',
+        maxZoom: 19,
+      }),
+  },
+  {
+    key: 'satellite',
+    label: '🌍 Esri Vệ tinh',
+    createSource: () =>
+      new XYZ({
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attributions: '© Esri, Maxar, Earthstar Geographics',
+        maxZoom: 19,
+      }),
+  },
+  {
+    key: 'osm',
+    label: '🌐 OpenStreetMap',
+    createSource: () => new OSM(),
+  },
+];
+
 export const VroadSurveyMapPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -39,6 +99,8 @@ export const VroadSurveyMapPage = () => {
   const defectRecordId = searchParams.get('defectRecordId');
   const root = useRef<HTMLDivElement>(null);
   const map = useRef<Map | null>(null);
+  const baseLayerRef = useRef<TileLayer<OSM | XYZ> | null>(null);
+  const [basemapKey, setBasemapKey] = useState<string>('google_road');
   const pointsSource = useRef<VectorSource>(new VectorSource());
   const visibleAssetSource = useRef<VectorSource>(new VectorSource());
   const defectLayer = useRef<VectorLayer<VectorSource> | null>(null);
@@ -211,12 +273,19 @@ export const VroadSurveyMapPage = () => {
       style: new Style({ image: new CircleStyle({ radius: 11, fill: new Fill({ color: '#cf1322' }),
         stroke: new Stroke({ color: '#fff1b8', width: 4 }) }) }),
     });
+    const initialBasemap = VROAD_BASEMAP_OPTIONS.find((b) => b.key === basemapKey) || VROAD_BASEMAP_OPTIONS[0];
+    const baseLayer = new TileLayer({ source: initialBasemap.createSource() });
+    baseLayerRef.current = baseLayer;
     const instance = new Map({
       target: root.current,
-      layers: [new TileLayer({ source: new OSM() }), visibleAssets, visibleDefects, highlightedAsset, focusedDefects],
-      view: new View({ center: fromLonLat([109.2, 13.5]), zoom: 10, minZoom: 5, maxZoom: 19 }),
+      layers: [baseLayer, visibleAssets, visibleDefects, highlightedAsset, focusedDefects],
+      view: new View({ center: fromLonLat([109.2, 13.5]), zoom: 10, minZoom: 5, maxZoom: 20 }),
     });
     map.current = instance;
+    const resizeObserver = new ResizeObserver(() => {
+      instance.updateSize();
+    });
+    if (root.current) resizeObserver.observe(root.current);
     instance.on('moveend', () => { void updatePoints(instance); });
     instance.on('singleclick', (event) => {
       const hit = instance.forEachFeatureAtPixel(event.pixel, (feature) => feature);
@@ -262,8 +331,10 @@ export const VroadSurveyMapPage = () => {
       ++clickRequest.current;
       ++loadRequest.current;
       window.clearTimeout(initial);
+      resizeObserver.disconnect();
       instance.setTarget(undefined);
       map.current = null;
+      baseLayerRef.current = null;
       pointSource.clear();
       assetMarkersSource.clear();
       selectedAssetSource.clear();
@@ -273,6 +344,12 @@ export const VroadSurveyMapPage = () => {
       selectedAssetLayer.current = null;
     };
   }, [updatePoints]);
+
+  useEffect(() => {
+    if (!baseLayerRef.current) return;
+    const option = VROAD_BASEMAP_OPTIONS.find((b) => b.key === basemapKey) || VROAD_BASEMAP_OPTIONS[0];
+    baseLayerRef.current.setSource(option.createSource());
+  }, [basemapKey]);
 
   useEffect(() => {
     assetLayer.current?.setVisible(mapLayer !== 'defects');
@@ -394,21 +471,36 @@ export const VroadSurveyMapPage = () => {
         <Card title="Điểm khảo sát KCHT Đường bộ" extra={<Space wrap><Tag color="red">{points.length} hư hỏng</Tag>
           <Tag color="blue">{assets.length} tài sản</Tag>
           {(truncated || assetsTruncated) && <Tag color="orange">Giới hạn 500 điểm mỗi loại — phóng to để xem thêm</Tag>}</Space>}>
-          <Segmented aria-label="Lớp bản đồ" value={mapLayer}
-            options={[{ label: 'Tất cả', value: 'all' }, { label: 'Hư hỏng', value: 'defects' },
-              { label: 'Tài sản', value: 'assets' }]}
-            onChange={(value) => {
-              setMapLayer(value as 'all' | 'defects' | 'assets');
-              ++clickSequence.current;
-              setSelected(null);
-              setSelectedAsset(null);
-              setShowRelatedDefects(false);
-              setLoadingRelated(false);
-              setZoomed(null);
-              setAssetZoomed(false);
-              setError(null);
-              setIsLoading(false);
-            }} style={{ marginBottom: 12 }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <Segmented aria-label="Lớp bản đồ" value={mapLayer}
+              options={[{ label: 'Tất cả', value: 'all' }, { label: 'Hư hỏng', value: 'defects' },
+                { label: 'Tài sản', value: 'assets' }]}
+              onChange={(value) => {
+                setMapLayer(value as 'all' | 'defects' | 'assets');
+                ++clickSequence.current;
+                setSelected(null);
+                setSelectedAsset(null);
+                setShowRelatedDefects(false);
+                setLoadingRelated(false);
+                setZoomed(null);
+                setAssetZoomed(false);
+                setError(null);
+                setIsLoading(false);
+              }} />
+            <Space size="small">
+              <Text type="secondary" style={{ fontSize: 13 }}>Nền bản đồ:</Text>
+              <Select
+                aria-label="Chọn nền bản đồ"
+                value={basemapKey}
+                onChange={setBasemapKey}
+                style={{ width: 180 }}
+                options={VROAD_BASEMAP_OPTIONS.map((opt) => ({
+                  value: opt.key,
+                  label: opt.label,
+                }))}
+              />
+            </Space>
+          </div>
           <div ref={root} data-testid="vroad-map" style={{ height: 570, width: '100%', background: '#edf2f6' }} />
           <Input.Search aria-label="Tìm điểm trong khung bản đồ" placeholder="Tìm mã điểm hoặc tài sản trong khung bản đồ"
             value={lookup} onChange={(event) => setLookup(event.target.value)} enterButton="Xem điểm"

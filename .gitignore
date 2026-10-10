@@ -47,6 +47,7 @@ data/storage/
 scratch/*.json
 scratch/*.png
 scratch/*.sql
+banner/
 
 # IDE & Editor Configuration
 .idea/
