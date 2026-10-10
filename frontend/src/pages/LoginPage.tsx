@@ -98,7 +98,7 @@ export const LoginPage: React.FC = () => {
               marginBottom: 12,
             }}
           >
-            <VroadBrand inverse />
+            <VroadBrand inverse size="large" showSubtitle={false} />
           </div>
           <div style={{ color: '#69b1ff', fontSize: 12, fontWeight: 600, letterSpacing: 1.5, textTransform: 'uppercase' }}>
             Cổng Thông Tin Điều Hành & Giám Sát
