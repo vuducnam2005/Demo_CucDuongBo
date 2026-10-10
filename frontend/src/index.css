@@ -9,7 +9,9 @@ body,
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   background-color: #f0f2f5;
   color: #262626;
   -webkit-font-smoothing: antialiased;
@@ -55,6 +57,24 @@ body {
   transition: all 0.2s ease-in-out;
 }
 
+.kcht-sidebar {
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease,
+    max-width 0.2s ease,
+    transform 0.2s ease !important;
+}
+
+.kcht-sidebar-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 21, 41, 0.48);
+  backdrop-filter: blur(2px);
+}
+
 .kcht-content-container {
   padding: 20px 24px;
   min-height: calc(100vh - 56px - 48px);
@@ -62,7 +82,10 @@ body {
 
 .kcht-card {
   border-radius: 8px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+  box-shadow:
+    0 1px 2px 0 rgba(0, 0, 0, 0.03),
+    0 1px 6px -1px rgba(0, 0, 0, 0.02),
+    0 2px 4px 0 rgba(0, 0, 0, 0.02);
 }
 
 .kcht-asset-table .ant-table-container {
@@ -115,7 +138,7 @@ body {
   .kcht-content-container {
     padding: 12px 12px;
   }
-  
+
   .kcht-table-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -140,6 +163,12 @@ body {
   .kcht-content-container > .ant-layout-content,
   .kcht-content-container > div {
     padding: 12px !important;
+  }
+}
+
+@media (max-width: 991px) {
+  .kcht-sidebar:not(.ant-layout-sider-collapsed) {
+    box-shadow: 12px 0 32px rgba(0, 21, 41, 0.24);
   }
 }
 
@@ -216,4 +245,3 @@ body {
   background: #ffffff;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
 }
-
