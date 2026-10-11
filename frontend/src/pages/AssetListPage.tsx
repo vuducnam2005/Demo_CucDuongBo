@@ -38,7 +38,16 @@ import {
   EditOutlined,
   DeleteOutlined,
   UploadOutlined,
+  BuildOutlined,
+  AlertOutlined,
+  CameraOutlined,
+  BranchesOutlined,
+  ArrowRightOutlined,
+  AppstoreOutlined,
+  CheckCircleOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons';
+import './AssetListPage.css';
 import { ColumnsType } from 'antd/es/table';
 import { Key } from 'antd/es/table/interface';
 import type { EventDataNode } from 'antd/es/tree';
@@ -244,9 +253,10 @@ function updateTreeData(
   key: string,
   children: DatasetTreeNode[]
 ): DatasetTreeNode[] {
+  const safeChildren = children.filter((child) => child.key !== key);
   return list.map((node) => {
     if (node.key === key) {
-      return { ...node, children };
+      return { ...node, children: safeChildren };
     }
     if (node.children) {
       return { ...node, children: updateTreeData(node.children, key, children) };
@@ -267,10 +277,133 @@ export interface AssetListPageProps {
 
 const GREEN_TREE_TYPES = 'Cây,Cây xanh,Cay,Cay xanh,Tree,Green tree';
 
+interface CoreCategoryConfig {
+  key: string;
+  name: string;
+  groupName: string;
+  defaultTitle: string;
+  icon: React.ReactNode;
+}
+
+const CORE_ASSET_CATEGORIES: CoreCategoryConfig[] = [
+  {
+    key: 'vroad_assets',
+    name: 'Tài sản Khảo sát VroadAI',
+    defaultTitle: 'Tài sản VroadAI (nguồn)',
+    groupName: 'Khảo sát Hiện trường AI',
+    icon: <CameraOutlined style={{ color: '#1677ff' }} />,
+  },
+  {
+    key: 'mst_national_road',
+    name: 'Đường Quốc lộ',
+    defaultTitle: 'Mạng lưới Quốc lộ (169 tuyến)',
+    groupName: 'Tuyến đường & Mạng lưới',
+    icon: <CompassOutlined style={{ color: '#0958d9' }} />,
+  },
+  {
+    key: 'mst_national_expressway',
+    name: 'Đường Cao tốc',
+    defaultTitle: 'Đường cao tốc (51)',
+    groupName: 'Tuyến đường & Mạng lưới',
+    icon: <DashboardOutlined style={{ color: '#08979c' }} />,
+  },
+  {
+    key: 'tbl_bridge',
+    name: 'Cầu Đường bộ',
+    defaultTitle: 'Cầu đường bộ (11.631 cầu)',
+    groupName: 'Công trình Cầu & Kết cấu',
+    icon: <BuildOutlined style={{ color: '#fa8c16' }} />,
+  },
+  {
+    key: 'tbl_road_sign',
+    name: 'Biển Báo hiệu Đường bộ',
+    defaultTitle: 'Biển báo hiệu đường bộ (222.112)',
+    groupName: 'Báo hiệu & An toàn Giao thông',
+    icon: <AlertOutlined style={{ color: '#d46b08' }} />,
+  },
+  {
+    key: 'other_assets',
+    name: 'Tài sản khác',
+    defaultTitle: 'Tài sản khác',
+    groupName: 'Hạ tầng Phụ trợ',
+    icon: <AppstoreOutlined style={{ color: '#722ed1' }} />,
+  },
+];
+
+const getDatasetDisplayInfo = (key: string, meta?: DatasetMetadata) => {
+  const customTitle = meta?.datasetName;
+  switch (key) {
+    case 'vroad_assets':
+      return {
+        title: customTitle || 'Tài sản Khảo sát VroadAI (Hiện trường)',
+        subtitle: 'Dữ liệu nhận diện tự động từ hình ảnh hành trình AI dọc các tuyến quốc lộ & cao tốc (đã phân tách cây xanh).',
+        categoryTag: 'Khảo sát AI Hiện trường',
+        kindTag: 'Tài sản KCHT Đường bộ',
+        kindColor: 'blue',
+      };
+    case 'mst_national_road':
+      return {
+        title: customTitle || 'Danh mục Tuyến Đường Quốc Lộ',
+        subtitle: 'Mạng lưới các tuyến quốc lộ huyết mạch trên phạm vi toàn quốc thuộc thẩm quyền quản lý.',
+        categoryTag: 'Mạng lưới Tuyến đường',
+        kindTag: 'Tài sản KCHT Tuyến đường',
+        kindColor: 'geekblue',
+      };
+    case 'mst_national_expressway':
+      return {
+        title: customTitle || 'Danh mục Tuyến Đường Cao Tốc',
+        subtitle: 'Mạng lưới đường bộ cao tốc quốc gia đang vận hành khai thác.',
+        categoryTag: 'Mạng lưới Tuyến đường',
+        kindTag: 'Tài sản KCHT Tuyến đường',
+        kindColor: 'cyan',
+      };
+    case 'tbl_bridge':
+      return {
+        title: customTitle || 'Cầu đường bộ',
+        subtitle: 'Quản lý thông số kỹ thuật, kết cấu nhịp, mố trụ và lý trình cầu trên các tuyến.',
+        categoryTag: 'Công trình Nhân tạo',
+        kindTag: 'Tài sản KCHT Cầu',
+        kindColor: 'orange',
+      };
+    case 'tbl_road_sign':
+      return {
+        title: customTitle || 'Biển báo hiệu đường bộ',
+        subtitle: 'Quản lý vị trí, lý trình, hình dạng và tình trạng các biển báo hiệu giao thông đường bộ.',
+        categoryTag: 'Thiết bị An toàn Giao thông',
+        kindTag: 'Tài sản KCHT Báo hiệu',
+        kindColor: 'gold',
+      };
+    case 'green_trees':
+      return {
+        title: customTitle || 'Quản lý Cây xanh Dọc tuyến',
+        subtitle: 'Quản lý hồ sơ lâm sinh, loài cây, kích thước và tình trạng sinh trưởng cây xanh ven đường.',
+        categoryTag: 'Cảnh quan Dọc tuyến',
+        kindTag: 'Cây xanh Dọc tuyến',
+        kindColor: 'green',
+      };
+    case 'other_assets':
+      return {
+        title: customTitle || 'Quản lý Tài sản Hạ tầng Khác',
+        subtitle: 'Các tài sản kết cấu hạ tầng phụ trợ chưa thuộc nhóm chuyên biệt.',
+        categoryTag: 'Hạ tầng Phụ trợ',
+        kindTag: 'Tài sản KCHT Khác',
+        kindColor: 'purple',
+      };
+    default:
+      return {
+        title: customTitle || key,
+        subtitle: `Tập dữ liệu mã ${key}.`,
+        categoryTag: 'Tài sản KCHT',
+        kindTag: meta?.kind === 'asset' ? 'Tài sản KCHT Đường bộ' : 'Danh mục Chuẩn',
+        kindColor: meta?.kind === 'asset' ? 'blue' : 'default',
+      };
+  }
+};
+
 export const AssetListPage: React.FC<AssetListPageProps> = ({
   fixedDatasetKey,
-  pageTitle = 'Cây Tài sản & Danh mục Hồ sơ KCHT Đường bộ',
-  pageDescription = 'Tra cứu tài sản khảo sát và tuyến đường đã nhập, tìm kiếm và phân trang.',
+  pageTitle = 'Danh mục Tài sản Kết cấu Hạ tầng Đường bộ',
+  pageDescription = 'Tra cứu, quản lý hồ sơ kỹ thuật, thông số và vị trí không gian các công trình, thiết bị KCHT đường bộ.',
   createButtonLabel = 'Thêm mới',
   emptyTitle = 'Tập dữ liệu chưa có bản ghi',
   emptyDescription = 'API trả về danh sách rỗng cho tập dữ liệu này.',
@@ -283,8 +416,12 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
   const screens = useBreakpoint();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Selected dataset from URL or default to vertical slice tbl_road_sign
-  const initialDataset = fixedDatasetKey || searchParams.get('datasetKey') || 'vroad_assets';
+  // Selected dataset from URL or default to vertical slice vroad_assets
+  const rawRequestedDataset = fixedDatasetKey || searchParams.get('datasetKey') || 'vroad_assets';
+  // If in asset management mode, prevent green_trees from being loaded as an asset
+  const initialDataset = (!fixedDatasetKey && rawRequestedDataset === 'green_trees')
+    ? 'vroad_assets'
+    : rawRequestedDataset;
   const initialBranch = searchParams.get('branch') || '';
 
   const [selectedDatasetKey, setSelectedDatasetKey] = useState<string>(initialDataset);
@@ -382,6 +519,13 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
     },
   });
 
+  // Guard against green_trees query on the asset management page:
+  useEffect(() => {
+    if (!fixedDatasetKey && searchParams.get('datasetKey') === 'green_trees') {
+      navigate('/green-trees', { replace: true });
+    }
+  }, [fixedDatasetKey, searchParams, navigate]);
+
   // Sync state when URL params change
   useEffect(() => {
     if (fixedDatasetKey) {
@@ -393,6 +537,10 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
       return;
     }
     const urlDataset = searchParams.get('datasetKey');
+    if (urlDataset === 'green_trees') {
+      navigate('/green-trees', { replace: true });
+      return;
+    }
     if (urlDataset && urlDataset !== selectedDatasetKey) {
       setSelectedDatasetKey(urlDataset);
       setPage(0);
@@ -403,7 +551,7 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
       setBranchFilter(urlBranch);
       setPage(0);
     }
-  }, [fixedDatasetKey, searchParams, selectedDatasetKey, branchFilter]);
+  }, [fixedDatasetKey, searchParams, selectedDatasetKey, branchFilter, navigate]);
 
   // 1. Fetch Tree Hierarchy
   const treeQuery = useQuery({
@@ -725,6 +873,53 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
           render: (_, record) => renderAttribute(record.payload, 'location_id'),
         }
       );
+    } else if (selectedDatasetKey === 'vroad_assets') {
+      cols.push(
+        {
+          title: 'Loại tài sản AI',
+          key: 'asset_type',
+          width: 170,
+          render: (_, record) => {
+            const assetType = toDisplayString(record.payload?.asset_type);
+            return assetType ? (
+              <Tag color="cyan">{assetType}</Tag>
+            ) : <Text type="secondary">Chưa phân loại</Text>;
+          },
+        },
+        {
+          title: 'Tuyến khảo sát',
+          key: 'route_name',
+          width: 180,
+          render: (_, record) => renderAttribute(record.payload, 'route_name'),
+        },
+        {
+          title: 'Lý trình',
+          key: 'chainage',
+          width: 140,
+          render: (_, record) => {
+            const chainage = toDisplayString(record.payload?.chainage ?? record.payload?.lytrinh);
+            return chainage ? <Text strong>{chainage}</Text> : <Text type="secondary">—</Text>;
+          },
+        },
+        {
+          title: 'Phía tài sản',
+          key: 'asset_side',
+          width: 120,
+          render: (_, record) => {
+            const side = toDisplayString(record.payload?.asset_side);
+            if (!side) return <Text type="secondary">—</Text>;
+            return side.toLowerCase().includes('phải') || side.toLowerCase().includes('right')
+              ? <Tag color="blue">{side}</Tag>
+              : <Tag color="purple">{side}</Tag>;
+          },
+        },
+        {
+          title: 'Tình trạng',
+          key: 'condition',
+          width: 140,
+          render: (_, record) => renderAttribute(record.payload, 'condition'),
+        },
+      );
     } else if (selectedDatasetKey === 'green_trees') {
       cols.push(
         {
@@ -855,11 +1050,39 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
     return cols;
   })();
 
-  // Filtered tree nodes by search input
-  const displayedTreeData = useMemo(
-    () => treeData.length > 0 ? treeData : (treeQuery.data ?? []),
-    [treeData, treeQuery.data],
-  );
+  // Filtered tree nodes by search input, deduplicating keys and excluding green_trees when on /assets
+  const displayedTreeData = useMemo(() => {
+    const raw = treeData.length > 0 ? treeData : (treeQuery.data ?? []);
+    const seenKeys = new Set<string>();
+    const sanitizeNodes = (nodes: DatasetTreeNode[]): DatasetTreeNode[] => {
+      const sanitized: DatasetTreeNode[] = [];
+      for (const n of nodes) {
+        if (!fixedDatasetKey && n.datasetKey === 'green_trees') continue;
+        if (seenKeys.has(n.key)) continue;
+        seenKeys.add(n.key);
+        sanitized.push({
+          ...n,
+          children: n.children ? sanitizeNodes(n.children) : undefined,
+        });
+      }
+      return sanitized;
+    };
+    return sanitizeNodes(raw);
+  }, [treeData, treeQuery.data, fixedDatasetKey]);
+
+  // Map of dataset keys to nodes for fast lookup of titles & metadata
+  const treeDatasetMap = useMemo(() => {
+    const map = new Map<string, DatasetTreeNode>();
+    const traverse = (nodes: DatasetTreeNode[]) => {
+      for (const node of nodes) {
+        if (node.datasetKey) map.set(node.datasetKey, node);
+        if (node.children) traverse(node.children);
+      }
+    };
+    traverse(displayedTreeData);
+    return map;
+  }, [displayedTreeData]);
+
   const filteredTreeData = useMemo<DatasetTreeNode[]>(() => {
     if (!treeSearch.trim()) return displayedTreeData;
     const term = treeSearch.toLowerCase();
@@ -905,7 +1128,7 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
       </div>
 
       <Row gutter={[16, 16]}>
-        {/* Left Side: Tree Hierarchy with Lazy-load */}
+        {/* Left Side: Reorganized Asset Category Hierarchy */}
         {!fixedDatasetKey && <Col xs={24} md={8} lg={6}>
           <Card
             title={
@@ -916,66 +1139,126 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
             }
             size="small"
             variant="borderless"
-            className="kcht-card"
+            className="kcht-card kcht-category-panel"
             style={{ borderRadius: 8 }}
           >
-            <div style={{ marginBottom: 12 }}>
-              <Text strong style={{ fontSize: 11, color: '#8c8c8c', display: 'block', marginBottom: 6 }}>
-                TRUY CẬP NHANH
+            {/* Quick Access Primary Categories */}
+            <div style={{ marginBottom: 14 }}>
+              <Text strong style={{ fontSize: 11, color: '#8c8c8c', display: 'block', marginBottom: 8, letterSpacing: '0.5px' }}>
+                DANH MỤC TÀI SẢN TRỌNG YẾU
               </Text>
               <Space direction="vertical" style={{ width: '100%' }} size={6}>
-                {displayedTreeData.flatMap((group) => group.children ?? [])
-                  .filter((dataset) => ['vroad_assets', 'mst_national_road', 'mst_national_expressway',
-                    'tbl_road_sign', 'tbl_bridge'].includes(dataset.datasetKey ?? ''))
-                  .map((dataset) => <Button key={dataset.key} block size="small"
-                    type={selectedDatasetKey === dataset.datasetKey ? 'primary' : 'default'}
-                    onClick={() => handleSelectVerticalSlice(dataset.datasetKey!)}
-                    style={{ textAlign: 'left' }}>{dataset.title}</Button>)}
+                {CORE_ASSET_CATEGORIES.map((cat) => {
+                  const matchNode = treeDatasetMap.get(cat.key);
+                  const title = matchNode?.title || cat.defaultTitle;
+                  const isSelected = selectedDatasetKey === cat.key;
+                  return (
+                    <Button
+                      key={cat.key}
+                      block
+                      size="small"
+                      type={isSelected ? 'primary' : 'default'}
+                      onClick={() => handleSelectVerticalSlice(cat.key)}
+                      style={{
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        height: 38,
+                        padding: '0 10px',
+                        borderRadius: 6,
+                        borderColor: isSelected ? '#1677ff' : '#eaedf2',
+                        background: isSelected ? '#e6f4ff' : '#fafbfc',
+                      }}
+                    >
+                      <Space size={8} style={{ overflow: 'hidden' }}>
+                        {cat.icon}
+                        <span style={{
+                          fontWeight: isSelected ? 600 : 400,
+                          color: isSelected ? '#0958d9' : '#262626',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {title}
+                        </span>
+                      </Space>
+                    </Button>
+                  );
+                })}
               </Space>
             </div>
 
             {/* Tree search box */}
-            <Input
-              placeholder="Tìm kiếm tập dữ liệu..."
-              prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
-              value={treeSearch}
-              onChange={(e) => setTreeSearch(e.target.value)}
-              size="small"
-              allowClear
-              style={{ marginBottom: 12, borderRadius: 4 }}
-            />
+            <div className="kcht-tree-section">
+              <Text strong style={{ fontSize: 11, color: '#8c8c8c', display: 'block', marginBottom: 6 }}>
+                CÂY PHÂN CẤP TÀI SẢN CHI TIẾT
+              </Text>
+              <Input
+                placeholder="Tìm kiếm tập dữ liệu..."
+                prefix={<SearchOutlined style={{ color: '#8c8c8c' }} />}
+                value={treeSearch}
+                onChange={(e) => setTreeSearch(e.target.value)}
+                size="small"
+                allowClear
+                style={{ marginBottom: 10, borderRadius: 4 }}
+              />
 
-            {/* Ant Design Tree with Lazy Loading */}
-            <div style={{ minHeight: 280, maxHeight: 520, overflowY: 'auto' }}>
-              {treeQuery.isLoading ? (
-                <TableSkeleton rows={6} columns={1} />
-              ) : treeQuery.isError ? (
-                <EmptyState
-                  title={getApiErrorPresentation(treeQuery.error).title}
-                  description={getApiErrorPresentation(treeQuery.error).description}
-                  actionText={getApiErrorPresentation(treeQuery.error).retryable ? 'Thử lại' : undefined}
-                  onAction={getApiErrorPresentation(treeQuery.error).retryable ? () => void treeQuery.refetch() : undefined}
-                  style={{ padding: '20px 8px' }}
-                />
-              ) : filteredTreeData.length === 0 ? (
-                <EmptyState
-                  title="Không tìm thấy tập dữ liệu"
-                  description="Không có nhánh dữ liệu nào khớp với từ khóa đang nhập."
-                  actionText="Xóa tìm kiếm"
-                  onAction={() => setTreeSearch('')}
-                  style={{ padding: '20px 8px' }}
-                />
-              ) : (
-                <Tree<DatasetTreeNode>
-                  treeData={filteredTreeData}
-                  loadData={handleLoadTreeData}
-                  selectedKeys={[selectedDatasetKey]}
-                  onSelect={(keys, info) => handleTreeSelect(keys, { node: info.node })}
-                  defaultExpandedKeys={['group_roads', 'group_bridges', 'group_traffic_signs']}
-                  showLine={{ showLeafIcon: true }}
-                  blockNode
-                />
-              )}
+              {/* Ant Design Tree with Lazy Loading */}
+              <div style={{ minHeight: 220, maxHeight: 420, overflowY: 'auto' }}>
+                {treeQuery.isLoading ? (
+                  <TableSkeleton rows={6} columns={1} />
+                ) : treeQuery.isError ? (
+                  <EmptyState
+                    title={getApiErrorPresentation(treeQuery.error).title}
+                    description={getApiErrorPresentation(treeQuery.error).description}
+                    actionText={getApiErrorPresentation(treeQuery.error).retryable ? 'Thử lại' : undefined}
+                    onAction={getApiErrorPresentation(treeQuery.error).retryable ? () => void treeQuery.refetch() : undefined}
+                    style={{ padding: '20px 8px' }}
+                  />
+                ) : filteredTreeData.length === 0 ? (
+                  <EmptyState
+                    title="Không tìm thấy tập dữ liệu"
+                    description="Không có nhánh dữ liệu nào khớp với từ khóa đang nhập."
+                    actionText="Xóa tìm kiếm"
+                    onAction={() => setTreeSearch('')}
+                    style={{ padding: '20px 8px' }}
+                  />
+                ) : (
+                  <Tree<DatasetTreeNode>
+                    treeData={filteredTreeData}
+                    loadData={handleLoadTreeData}
+                    selectedKeys={[selectedDatasetKey]}
+                    onSelect={(keys, info) => handleTreeSelect(keys, { node: info.node })}
+                    defaultExpandedKeys={['group_roads', 'group_bridges', 'group_traffic_signs', 'group_all_assets']}
+                    showLine={{ showLeafIcon: true }}
+                    blockNode
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Dedicated Green Tree Callout Card */}
+            <div className="kcht-green-trees-callout">
+              <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                <Space>
+                  <BranchesOutlined style={{ color: '#52c41a', fontSize: 16 }} />
+                  <Text strong style={{ color: '#237804', fontSize: 13 }}>Quản lý Cây xanh</Text>
+                </Space>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Hồ sơ cây xanh dọc tuyến được quản lý độc lập tại phân hệ Cây xanh riêng biệt (không thuộc Tài sản).
+                </Text>
+                <Button
+                  type="primary"
+                  size="small"
+                  ghost
+                  block
+                  icon={<ArrowRightOutlined />}
+                  onClick={() => navigate('/green-trees')}
+                >
+                  Đến phân hệ Cây xanh
+                </Button>
+              </Space>
             </div>
           </Card>
         </Col>}
@@ -984,99 +1267,130 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
         <Col xs={24} md={fixedDatasetKey ? 24 : 16} lg={fixedDatasetKey ? 24 : 18}>
           <Card
             variant="borderless"
-            className="kcht-card"
+            className="kcht-card kcht-asset-header-card"
             style={{ borderRadius: 8, marginBottom: 16 }}
             size="small"
           >
             {/* Dataset Information Header */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 12,
-                marginBottom: 16,
-                paddingBottom: 12,
-                borderBottom: '1px solid #f0f0f0',
-              }}
-            >
-              <div>
-                <Space align="center">
-                  <Title level={4} style={{ margin: 0, color: '#003a8c' }}>
-                    {metadata?.datasetName || selectedDatasetKey}
-                  </Title>
-                  <Tag color="geekblue">{selectedDatasetKey}</Tag>
-                  <Tag color={metadata?.kind === 'asset' ? 'green' : 'orange'}>
-                    {metadata?.kind === 'asset' ? 'Tài sản Vật thể' : 'Danh mục Chuẩn'}
-                  </Tag>
-                  {metadata?.geometryType && metadata.geometryType !== 'NONE' && (
-                    <Tag color="cyan" icon={<EnvironmentOutlined />}>
-                      PostGIS {metadata.geometryType}
-                    </Tag>
-                  )}
-                </Space>
-                <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
-                  Tổng số:{' '}
-                  <strong>
-                    {recordsData
-                      ? `${recordsData.totalElements.toLocaleString('vi-VN')} bản ghi`
-                      : metadataQuery.isLoading || loadingRecords
-                        ? 'Đang tải...'
-                        : 'Chưa xác định'}
-                  </strong>
-                </div>
-              </div>
+            {(() => {
+              const datasetInfo = getDatasetDisplayInfo(selectedDatasetKey, metadata);
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    flexWrap: 'wrap',
+                    gap: 12,
+                    marginBottom: 14,
+                    paddingBottom: 12,
+                    borderBottom: '1px solid #f0f0f0',
+                  }}
+                >
+                  <div>
+                    <Space align="center" wrap>
+                      <Title level={4} style={{ margin: 0, color: '#003a8c' }}>
+                        {datasetInfo.title}
+                      </Title>
+                      <Tag color="geekblue">{selectedDatasetKey}</Tag>
+                      <Tag color={datasetInfo.kindColor}>
+                        {datasetInfo.kindTag}
+                      </Tag>
+                      {metadata?.geometryType && metadata.geometryType !== 'NONE' && (
+                        <Tag color="cyan" icon={<EnvironmentOutlined />}>
+                          PostGIS {metadata.geometryType}
+                        </Tag>
+                      )}
+                    </Space>
+                    <div style={{ fontSize: 13, color: '#595959', marginTop: 4 }}>
+                      {datasetInfo.subtitle}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#8c8c8c', marginTop: 4 }}>
+                      Tổng số:{' '}
+                      <strong style={{ color: '#003a8c' }}>
+                        {recordsData
+                          ? `${recordsData.totalElements.toLocaleString('vi-VN')} bản ghi`
+                          : metadataQuery.isLoading || loadingRecords
+                            ? 'Đang tải...'
+                            : 'Chưa xác định'}
+                      </strong>
+                    </div>
+                  </div>
 
-              <Space>
-                {canCreate && (
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => {
-                      setSelectedRecordForEdit(null);
-                      setFormModalMode('create');
-                      setFormModalVisible(true);
-                    }}
-                    size="small"
-                  >
-                    {createButtonLabel}
-                  </Button>
-                )}
-                {canImport && (
-                  <Button
-                    icon={<UploadOutlined />}
-                    onClick={() => setImportModalVisible(true)}
-                    size="small"
-                  >
-                    Nhập dữ liệu
-                  </Button>
-                )}
-                <Button
-                  icon={<ReloadOutlined spin={fetchingRecords} />}
-                  onClick={() => refetchRecords()}
-                  loading={fetchingRecords}
-                  size="small"
-                >
-                  Làm mới
-                </Button>
-                <Button
-                  icon={<ExportOutlined />}
-                  onClick={() => handleExportCsv()}
-                  loading={exporting}
-                  disabled={exporting}
-                  size="small"
-                >
-                  Xuất file CSV
-                </Button>
-                {showMapAction && <Button
-                  icon={<CompassOutlined />}
-                  onClick={() => navigate(`/map?dataset=${selectedDatasetKey}`)}
-                  size="small"
-                >
-                  Mở WebGIS
-                </Button>}
-              </Space>
+                  <Space wrap>
+                    {canCreate && (
+                      <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => {
+                          setSelectedRecordForEdit(null);
+                          setFormModalMode('create');
+                          setFormModalVisible(true);
+                        }}
+                        size="small"
+                      >
+                        {createButtonLabel}
+                      </Button>
+                    )}
+                    {canImport && (
+                      <Button
+                        icon={<UploadOutlined />}
+                        onClick={() => setImportModalVisible(true)}
+                        size="small"
+                      >
+                        Nhập dữ liệu
+                      </Button>
+                    )}
+                    <Button
+                      icon={<ReloadOutlined spin={fetchingRecords} />}
+                      onClick={() => refetchRecords()}
+                      loading={fetchingRecords}
+                      size="small"
+                    >
+                      Làm mới
+                    </Button>
+                    <Button
+                      icon={<ExportOutlined />}
+                      onClick={() => handleExportCsv()}
+                      loading={exporting}
+                      disabled={exporting}
+                      size="small"
+                    >
+                      Xuất file CSV
+                    </Button>
+                    {showMapAction && <Button
+                      icon={<CompassOutlined />}
+                      onClick={() => navigate(`/map?dataset=${selectedDatasetKey}`)}
+                      size="small"
+                    >
+                      Mở WebGIS
+                    </Button>}
+                  </Space>
+                </div>
+              );
+            })()}
+
+            {/* Quick KPI summary bar */}
+            <div className="kcht-asset-summary-bar">
+              <span className="kcht-summary-metric">
+                <DatabaseOutlined style={{ color: '#1677ff' }} />
+                <span>Tập dữ liệu: <strong>{metadata?.datasetName || selectedDatasetKey}</strong></span>
+              </span>
+              <span className="kcht-summary-metric">
+                <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                <span>Tổng số: <strong>{recordsData?.totalElements.toLocaleString('vi-VN') ?? 0} bản ghi</strong></span>
+              </span>
+              <span className="kcht-summary-metric">
+                <EnvironmentOutlined style={{ color: '#fa8c16' }} />
+                <span>Định vị GIS: <strong>{metadata?.geometryType && metadata.geometryType !== 'NONE' ? `Sẵn sàng (${metadata.geometryType})` : 'Dạng bảng'}</strong></span>
+              </span>
+              {branchFilter && (
+                <span className="kcht-summary-metric">
+                  <Tag color="blue" closable onClose={() => setBranchFilter('')}>
+                    Lọc: {resolveBranchName(branchFilter)}
+                  </Tag>
+                </span>
+              )}
             </div>
 
             {/* Filter & Search Toolbar */}

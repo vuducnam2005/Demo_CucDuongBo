@@ -543,7 +543,15 @@ export const DashboardPage: React.FC = () => {
         <Button
           type="link"
           size="small"
-          onClick={() => navigate(`/assets?datasetKey=${record.datasetKey}`)}
+          onClick={() => {
+            if (record.datasetKey === 'green_trees') {
+              navigate('/green-trees');
+            } else if (record.datasetKey === 'other_assets') {
+              navigate('/other-assets');
+            } else {
+              navigate(`/assets?datasetKey=${record.datasetKey}`);
+            }
+          }}
         >
           Tra cứu <ArrowRightOutlined />
         </Button>
@@ -604,11 +612,17 @@ export const DashboardPage: React.FC = () => {
         <Button
           type="link"
           size="small"
-          onClick={() =>
-            navigate(
-              record.detailUrl || `/assets?datasetKey=${record.datasetKey}`,
-            )
-          }
+          onClick={() => {
+            if (record.datasetKey === 'green_trees') {
+              navigate('/green-trees');
+            } else if (record.datasetKey === 'other_assets') {
+              navigate('/other-assets');
+            } else {
+              navigate(
+                record.detailUrl || `/assets?datasetKey=${record.datasetKey}`
+              );
+            }
+          }}
         >
           Xem &rarr;
         </Button>
