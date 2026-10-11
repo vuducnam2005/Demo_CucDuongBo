@@ -103,6 +103,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?Vui lòng cấu hình POSTGRES_DB trong .env.production}
       POSTGRES_USER: ${POSTGRES_USER:?Vui lòng cấu hình POSTGRES_USER trong .env.production}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Vui lòng cấu hình POSTGRES_PASSWORD trong .env.production}
+      POSTGRES_SSLMODE: ${POSTGRES_SSLMODE:-disable}
+      SPRING_DATASOURCE_URL: "jdbc:postgresql://${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?Vui lòng cấu hình POSTGRES_DB trong .env.production}?sslmode=${POSTGRES_SSLMODE:-disable}&currentSchema=public&reWriteBatchedInserts=true"
       HIKARI_MAX_POOL_SIZE: ${HIKARI_MAX_POOL_SIZE:-25}
       JWT_SECRET: ${JWT_SECRET:?Vui lòng cấu hình JWT_SECRET trong .env.production}
       JWT_ACCESS_EXPIRATION_MS: ${JWT_ACCESS_EXPIRATION_MS:-900000}

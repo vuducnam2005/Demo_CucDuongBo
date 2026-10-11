@@ -12,7 +12,7 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 30s
   datasource:
-    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:postgres}?sslmode=require&currentSchema=public&reWriteBatchedInserts=true
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:postgres}?sslmode=${POSTGRES_SSLMODE:disable}&currentSchema=public&reWriteBatchedInserts=true
     username: ${POSTGRES_USER:postgres}
     password: ${POSTGRES_PASSWORD:}
     driver-class-name: org.postgresql.Driver
