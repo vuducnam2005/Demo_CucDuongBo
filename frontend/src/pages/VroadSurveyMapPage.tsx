@@ -27,8 +27,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getApiErrorMessage } from '../services/api';
 import {
-  fetchRoadContext, fetchVroadAsset, fetchVroadAssets, fetchVroadDefect, fetchVroadPoints, resolveVroadDefect, trustedSourceImage,
-  type AssetMarker, type AssetPoint, type DefectPoint, type RoadCatalog, type RoadContext,
+  fetchGreenTree, fetchGreenTrees, fetchRoadContext, fetchVroadAsset, fetchVroadAssets, fetchVroadDefect,
+  fetchVroadPoints, resolveVroadDefect, trustedSourceImage,
+  type AssetMarker, type AssetPoint, type DefectPoint, type GreenTreeMarker, type GreenTreePoint,
+  type RoadCatalog, type RoadContext,
 } from '../services/vroadApi';
 
 const { Title, Text } = Typography;
@@ -106,6 +108,7 @@ export const VroadSurveyMapPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const assetRecordId = searchParams.get('assetRecordId');
+  const treeRecordId = searchParams.get('treeRecordId');
   const focusedDefectSource = useRef(new VectorSource());
   const defectRecordId = searchParams.get('defectRecordId');
   const root = useRef<HTMLDivElement>(null);
@@ -114,29 +117,39 @@ export const VroadSurveyMapPage = () => {
   const [basemapKey, setBasemapKey] = useState<string>('google_road');
   const pointsSource = useRef<VectorSource>(new VectorSource());
   const visibleAssetSource = useRef<VectorSource>(new VectorSource());
+  const visibleTreeSource = useRef<VectorSource>(new VectorSource());
   const defectLayer = useRef<VectorLayer<VectorSource> | null>(null);
   const assetLayer = useRef<VectorLayer<VectorSource> | null>(null);
+  const treeLayer = useRef<VectorLayer<VectorSource> | null>(null);
   const selectedAssetLayer = useRef<VectorLayer<VectorSource> | null>(null);
+  const selectedTreeLayer = useRef<VectorLayer<VectorSource> | null>(null);
   const assetSource = useRef<VectorSource>(new VectorSource());
+  const treeSource = useRef<VectorSource>(new VectorSource());
   const assetRef = useRef<AssetPoint | null>(null);
+  const treeRef = useRef<GreenTreePoint | null>(null);
   const assetsRef = useRef<AssetMarker[]>([]);
+  const treesRef = useRef<GreenTreeMarker[]>([]);
   const pointsRef = useRef<DefectPoint[]>([]);
   const clickSequence = useRef(0);
   const loadSequence = useRef(0);
   const [points, setPoints] = useState<DefectPoint[]>([]);
   const [assets, setAssets] = useState<AssetMarker[]>([]);
+  const [trees, setTrees] = useState<GreenTreeMarker[]>([]);
   const [selected, setSelected] = useState<RoadContext | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<AssetPoint | null>(null);
+  const [selectedTree, setSelectedTree] = useState<GreenTreePoint | null>(null);
   const [showRelatedDefects, setShowRelatedDefects] = useState(false);
   const [loadingRelated, setLoadingRelated] = useState(false);
   const [selectedDefect, setSelectedDefect] = useState<DefectPoint | null>(null);
   const [zoomed, setZoomed] = useState<DefectPoint | null>(null);
   const [assetZoomed, setAssetZoomed] = useState(false);
+  const [treeZoomed, setTreeZoomed] = useState(false);
   const [lookup, setLookup] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [truncated, setTruncated] = useState(false);
   const [assetsTruncated, setAssetsTruncated] = useState(false);
-  const [mapLayer, setMapLayer] = useState<'all' | 'defects' | 'assets'>('all');
+  const [treesTruncated, setTreesTruncated] = useState(false);
+  const [mapLayer, setMapLayer] = useState<'all' | 'defects' | 'assets' | 'trees'>('all');
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [image, setImage] = useState<File | null>(null);
@@ -152,12 +165,18 @@ export const VroadSurveyMapPage = () => {
 
   const openContext = async (longitude: number, latitude: number, recordId?: number) => {
     focusedDefectSource.current.clear();
+    assetSource.current.clear();
+    treeSource.current.clear();
+    assetRef.current = null;
+    treeRef.current = null;
     const id = ++clickSequence.current;
     setSelected(null);
     setSelectedAsset(null);
+    setSelectedTree(null);
     setShowRelatedDefects(false);
     setLoadingRelated(false);
     setAssetZoomed(false);
+    setTreeZoomed(false);
     setZoomed(null);
     setIsLoading(true);
     try {
@@ -178,12 +197,16 @@ export const VroadSurveyMapPage = () => {
 
   const openAsset = async (recordId: number) => {
     focusedDefectSource.current.clear();
+    treeSource.current.clear();
+    treeRef.current = null;
     const id = ++clickSequence.current;
     setSelected(null);
     setSelectedAsset(null);
+    setSelectedTree(null);
     setShowRelatedDefects(false);
     setLoadingRelated(false);
     setAssetZoomed(false);
+    setTreeZoomed(false);
     setZoomed(null);
     setIsLoading(true);
     try {
@@ -197,6 +220,40 @@ export const VroadSurveyMapPage = () => {
   };
   const openAssetRef = useRef(openAsset);
   openAssetRef.current = openAsset;
+
+  const openTree = async (recordId: number) => {
+    focusedDefectSource.current.clear();
+    assetSource.current.clear();
+    assetRef.current = null;
+    const id = ++clickSequence.current;
+    setSelected(null);
+    setSelectedAsset(null);
+    setSelectedTree(null);
+    setShowRelatedDefects(false);
+    setLoadingRelated(false);
+    setAssetZoomed(false);
+    setTreeZoomed(false);
+    setZoomed(null);
+    setIsLoading(true);
+    try {
+      const tree = await fetchGreenTree(recordId);
+      if (id === clickSequence.current) {
+        treeRef.current = tree;
+        treeSource.current.clear();
+        const marker = new Feature({ geometry: new Point(fromLonLat([tree.longitude, tree.latitude])) });
+        marker.set('treeRecordId', tree.recordId);
+        treeSource.current.addFeature(marker);
+        setSelectedTree(tree);
+        setError(null);
+      }
+    } catch (cause) {
+      if (id === clickSequence.current) setError(getApiErrorMessage(cause));
+    } finally {
+      if (id === clickSequence.current) setIsLoading(false);
+    }
+  };
+  const openTreeRef = useRef(openTree);
+  openTreeRef.current = openTree;
 
   const openRelated = async () => {
     if (!selectedAsset || loadingRelated) return;
@@ -226,7 +283,11 @@ export const VroadSurveyMapPage = () => {
     ];
     if (bbox[2] - bbox[0] > 30 || bbox[3] - bbox[1] > 30) return;
     try {
-      const [page, assetPage] = await Promise.all([fetchVroadPoints(bbox), fetchVroadAssets(bbox)]);
+      const [page, assetPage, treePage] = await Promise.all([
+        fetchVroadPoints(bbox),
+        fetchVroadAssets(bbox),
+        fetchGreenTrees(bbox),
+      ]);
       if (id !== loadSequence.current) return;
       const features = page.content.map((defect) => {
         const feature = new Feature({ geometry: new Point(fromLonLat([defect.longitude, defect.latitude])) });
@@ -242,12 +303,22 @@ export const VroadSurveyMapPage = () => {
       });
       visibleAssetSource.current.clear();
       visibleAssetSource.current.addFeatures(assetFeatures);
+      const treeFeatures = treePage.content.map((tree) => {
+        const feature = new Feature({ geometry: new Point(fromLonLat([tree.longitude, tree.latitude])) });
+        feature.set('treeRecordId', tree.recordId);
+        return feature;
+      });
+      visibleTreeSource.current.clear();
+      visibleTreeSource.current.addFeatures(treeFeatures);
       pointsRef.current = page.content;
       assetsRef.current = assetPage.content;
+      treesRef.current = treePage.content;
       setPoints(page.content);
       setAssets(assetPage.content);
+      setTrees(treePage.content);
       setTruncated(page.truncated);
       setAssetsTruncated(assetPage.truncated);
+      setTreesTruncated(treePage.truncated);
       setError(null);
     } catch (cause) {
       if (id === loadSequence.current) setError(getApiErrorMessage(cause));
@@ -260,7 +331,9 @@ export const VroadSurveyMapPage = () => {
     const loadRequest = loadSequence;
     const pointSource = pointsSource.current;
     const assetMarkersSource = visibleAssetSource.current;
+    const treeMarkersSource = visibleTreeSource.current;
     const selectedAssetSource = assetSource.current;
+    const selectedTreeSource = treeSource.current;
     const visibleAssets = new VectorLayer({
       source: assetMarkersSource,
       style: new Style({ image: new CircleStyle({ radius: 6, fill: new Fill({ color: '#1763c5' }),
@@ -271,25 +344,36 @@ export const VroadSurveyMapPage = () => {
       style: new Style({ image: new CircleStyle({ radius: 7, fill: new Fill({ color: '#e5484d' }),
         stroke: new Stroke({ color: 'white', width: 2 }) }) }),
     });
+    const visibleTrees = new VectorLayer({
+      source: treeMarkersSource,
+      style: new Style({ image: new CircleStyle({ radius: 7, fill: new Fill({ color: '#2f9e44' }),
+        stroke: new Stroke({ color: 'white', width: 2 }) }) }),
+    });
     assetLayer.current = visibleAssets;
     defectLayer.current = visibleDefects;
+    treeLayer.current = visibleTrees;
     const highlightedAsset = new VectorLayer({
       source: selectedAssetSource,
       style: new Style({ image: new CircleStyle({ radius: 10, fill: new Fill({ color: '#1763c5' }),
         stroke: new Stroke({ color: 'white', width: 3 }) }) }),
     });
     selectedAssetLayer.current = highlightedAsset;
+    const highlightedTree = new VectorLayer({
+      source: selectedTreeSource,
+      style: new Style({ image: new CircleStyle({ radius: 11, fill: new Fill({ color: '#237804' }),
+        stroke: new Stroke({ color: '#f6ffed', width: 4 }) }) }),
+    });
+    selectedTreeLayer.current = highlightedTree;
     const focusedDefects = new VectorLayer({
       source: focusedDefectSource.current,
       style: new Style({ image: new CircleStyle({ radius: 11, fill: new Fill({ color: '#cf1322' }),
         stroke: new Stroke({ color: '#fff1b8', width: 4 }) }) }),
     });
-    const initialBasemap = VROAD_BASEMAP_OPTIONS.find((b) => b.key === basemapKey) || VROAD_BASEMAP_OPTIONS[0];
-    const baseLayer = new TileLayer({ source: initialBasemap.createSource() });
+    const baseLayer = new TileLayer({ source: VROAD_BASEMAP_OPTIONS[0].createSource() });
     baseLayerRef.current = baseLayer;
     const instance = new Map({
       target: root.current,
-      layers: [baseLayer, visibleAssets, visibleDefects, highlightedAsset, focusedDefects],
+      layers: [baseLayer, visibleAssets, visibleTrees, visibleDefects, highlightedAsset, highlightedTree, focusedDefects],
       view: new View({ center: fromLonLat([109.2, 13.5]), zoom: 10, minZoom: 5, maxZoom: 20 }),
     });
     map.current = instance;
@@ -304,6 +388,19 @@ export const VroadSurveyMapPage = () => {
         ++clickRequest.current;
         setSelected(null);
         setSelectedAsset(assetRef.current);
+        setSelectedTree(null);
+        setShowRelatedDefects(false);
+        setLoadingRelated(false);
+        setZoomed(null);
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+      if (treeRef.current && hit?.get('treeRecordId') === treeRef.current.recordId) {
+        ++clickRequest.current;
+        setSelected(null);
+        setSelectedAsset(null);
+        setSelectedTree(treeRef.current);
         setShowRelatedDefects(false);
         setLoadingRelated(false);
         setZoomed(null);
@@ -321,6 +418,11 @@ export const VroadSurveyMapPage = () => {
         void openAssetRef.current(assetRecord);
         return;
       }
+      const treeRecord = hit?.get('treeRecordId');
+      if (typeof treeRecord === 'number') {
+        void openTreeRef.current(treeRecord);
+        return;
+      }
       const defect = pointsRef.current.find((point) => point.recordId === hit?.getId());
       if (defect) {
         void openContextRef.current(defect.longitude, defect.latitude, defect.recordId);
@@ -329,9 +431,11 @@ export const VroadSurveyMapPage = () => {
         focusedDefects.getSource()?.clear();
         setSelected(null);
         setSelectedAsset(null);
+        setSelectedTree(null);
         setShowRelatedDefects(false);
         setLoadingRelated(false);
         setAssetZoomed(false);
+        setTreeZoomed(false);
         setZoomed(null);
         setIsLoading(false);
         setError(null);
@@ -348,11 +452,15 @@ export const VroadSurveyMapPage = () => {
       baseLayerRef.current = null;
       pointSource.clear();
       assetMarkersSource.clear();
+      treeMarkersSource.clear();
       selectedAssetSource.clear();
+      selectedTreeSource.clear();
       focusedDefects.getSource()?.clear();
       assetLayer.current = null;
       defectLayer.current = null;
+      treeLayer.current = null;
       selectedAssetLayer.current = null;
+      selectedTreeLayer.current = null;
     };
   }, [updatePoints]);
 
@@ -363,9 +471,11 @@ export const VroadSurveyMapPage = () => {
   }, [basemapKey]);
 
   useEffect(() => {
-    assetLayer.current?.setVisible(mapLayer !== 'defects');
-    defectLayer.current?.setVisible(mapLayer !== 'assets');
-    selectedAssetLayer.current?.setVisible(mapLayer !== 'defects');
+    assetLayer.current?.setVisible(mapLayer === 'all' || mapLayer === 'assets');
+    defectLayer.current?.setVisible(mapLayer === 'all' || mapLayer === 'defects');
+    treeLayer.current?.setVisible(mapLayer === 'all' || mapLayer === 'trees');
+    selectedAssetLayer.current?.setVisible(mapLayer === 'all' || mapLayer === 'assets');
+    selectedTreeLayer.current?.setVisible(mapLayer === 'all' || mapLayer === 'trees');
   }, [mapLayer]);
 
   useEffect(() => {
@@ -374,11 +484,13 @@ export const VroadSurveyMapPage = () => {
     focusedDefectSource.current.clear();
     assetRef.current = null;
     setSelectedAsset(null);
+    setSelectedTree(null);
     setShowRelatedDefects(false);
     setLoadingRelated(false);
     setAssetZoomed(false);
+    setTreeZoomed(false);
     if (!assetRecordId) {
-      setIsLoading(false);
+      if (!treeRecordId && !defectRecordId) setIsLoading(false);
       return;
     }
     setSelected(null);
@@ -405,12 +517,48 @@ export const VroadSurveyMapPage = () => {
       if (active && requestId === clickSequence.current) setIsLoading(false);
     });
     return () => { active = false; };
-  }, [assetRecordId]);
+  }, [assetRecordId, treeRecordId, defectRecordId]);
+
+  useEffect(() => {
+    treeSource.current.clear();
+    treeRef.current = null;
+    setSelectedTree(null);
+    if (!treeRecordId || assetRecordId || defectRecordId) {
+      if (!assetRecordId && !defectRecordId) setIsLoading(false);
+      return;
+    }
+    if (!/^[1-9]\d*$/.test(treeRecordId) || !Number.isSafeInteger(Number(treeRecordId))) {
+      setIsLoading(false);
+      setError('Mã cây xanh không hợp lệ.');
+      return;
+    }
+    const requestId = ++clickSequence.current;
+    let active = true;
+    setSelected(null);
+    setSelectedAsset(null);
+    setMapLayer('trees');
+    setError(null);
+    setIsLoading(true);
+    void fetchGreenTree(Number(treeRecordId)).then((tree) => {
+      if (!active || requestId !== clickSequence.current) return;
+      treeRef.current = tree;
+      const marker = new Feature({ geometry: new Point(fromLonLat([tree.longitude, tree.latitude])) });
+      marker.set('treeRecordId', tree.recordId);
+      treeSource.current.addFeature(marker);
+      map.current?.getView().animate({ center: fromLonLat([tree.longitude, tree.latitude]), zoom: 17, duration: 350 });
+      setSelectedTree(tree);
+    }).catch((cause) => {
+      if (active && requestId === clickSequence.current) setError(getApiErrorMessage(cause));
+    }).finally(() => {
+      if (active && requestId === clickSequence.current) setIsLoading(false);
+    });
+    return () => { active = false; };
+  }, [treeRecordId, assetRecordId, defectRecordId]);
 
   useEffect(() => {
     focusedDefectSource.current.clear();
-    if (!defectRecordId || assetRecordId) {
-      if (!assetRecordId) setIsLoading(false);
+    if (!defectRecordId || assetRecordId || treeRecordId) {
+      if (!assetRecordId && !treeRecordId) setIsLoading(false);
       return;
     }
     const requestId = ++clickSequence.current;
@@ -434,7 +582,7 @@ export const VroadSurveyMapPage = () => {
       if (active && requestId === clickSequence.current) setError(getApiErrorMessage(cause));
     }).finally(() => { if (active && requestId === clickSequence.current) setIsLoading(false); });
     return () => { active = false; };
-  }, [defectRecordId, assetRecordId, highlightDefect]);
+  }, [defectRecordId, assetRecordId, treeRecordId, highlightDefect]);
 
   const saveResolution = async () => {
     if (!selectedDefect || note.trim().length < 5) {
@@ -469,6 +617,7 @@ export const VroadSurveyMapPage = () => {
 
   const selectedPoint = selected?.defects[0];
   const assetImageUrl = trustedSourceImage(selectedAsset?.sourceImageUrl || null);
+  const treeImageUrl = trustedSourceImage(selectedTree?.sourceImageUrl || null);
   const relatedDefects = selectedAsset?.relatedDefects || [];
 
   const resetMapView = () => {
@@ -498,7 +647,7 @@ export const VroadSurveyMapPage = () => {
           <Tag color="geekblue" style={{ borderRadius: 10, padding: '2px 10px', fontSize: 12 }}>WebGIS Trực quan hóa AI</Tag>
         </Space>
         <Text type="secondary" style={{ display: 'block', fontSize: 13 }}>
-          Chọn điểm đỏ (hư hỏng) hoặc xanh (tài sản) để xem thông tin và ảnh của đúng điểm đó.
+          Chọn điểm đỏ (hư hỏng), xanh dương (tài sản) hoặc xanh lá (cây xanh) để xem thông tin và ảnh.
         </Text>
       </div>
       {user?.role === 'ROLE_ADMIN' && <Space wrap>
@@ -534,11 +683,11 @@ export const VroadSurveyMapPage = () => {
       <Col xs={12} sm={6}>
         <Card size="small" style={{ borderRadius: 10, background: '#fff', border: '1px solid #f0f0f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
           <Statistic
-            title={<Text type="secondary" style={{ fontSize: 12 }}>Tuyến khảo sát chính</Text>}
-            value="QL.1"
+            title={<Text type="secondary" style={{ fontSize: 12 }}>Cây xanh</Text>}
+            value={trees.length}
             prefix={<CompassOutlined style={{ color: '#52c41a' }} />}
-            suffix={<Text type="secondary" style={{ fontSize: 12 }}>(Bình Định - Phú Yên)</Text>}
-            valueStyle={{ fontSize: 18, fontWeight: 600, color: '#389e0d' }}
+            suffix={<Text type="secondary" style={{ fontSize: 12 }}>điểm</Text>}
+            valueStyle={{ fontSize: 20, fontWeight: 600, color: '#237804' }}
           />
         </Card>
       </Col>
@@ -572,7 +721,10 @@ export const VroadSurveyMapPage = () => {
               <Tag color="blue" style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}>
                 {assets.length} tài sản
               </Tag>
-              {(truncated || assetsTruncated) && (
+              <Tag color="green" style={{ borderRadius: 12, padding: '2px 10px', fontWeight: 500 }}>
+                {trees.length} cây xanh
+              </Tag>
+              {(truncated || assetsTruncated || treesTruncated) && (
                 <Tag color="orange" style={{ borderRadius: 12, padding: '2px 10px' }}>
                   Giới hạn 500 điểm mỗi loại — phóng to để xem thêm
                 </Tag>
@@ -589,16 +741,19 @@ export const VroadSurveyMapPage = () => {
                 { label: 'Tất cả', value: 'all' },
                 { label: 'Hư hỏng', value: 'defects' },
                 { label: 'Tài sản', value: 'assets' },
+                { label: 'Cây xanh', value: 'trees' },
               ]}
               onChange={(value) => {
-                setMapLayer(value as 'all' | 'defects' | 'assets');
+                setMapLayer(value as 'all' | 'defects' | 'assets' | 'trees');
                 ++clickSequence.current;
                 setSelected(null);
                 setSelectedAsset(null);
+                setSelectedTree(null);
                 setShowRelatedDefects(false);
                 setLoadingRelated(false);
                 setZoomed(null);
                 setAssetZoomed(false);
+                setTreeZoomed(false);
                 setError(null);
                 setIsLoading(false);
               }}
@@ -649,28 +804,40 @@ export const VroadSurveyMapPage = () => {
                 <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#1677ff' }} />
                 <span>Tài sản KCHT</span>
               </Space>
+              <Space size={6}>
+                <span style={{ display: 'inline-block', width: 9, height: 9, borderRadius: '50%', background: '#2f9e44' }} />
+                <span>Cây xanh</span>
+              </Space>
             </div>
           </div>
 
           <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <Input.Search
               aria-label="Tìm điểm trong khung bản đồ"
-              placeholder="Tìm mã điểm hoặc tài sản trong khung bản đồ"
+              placeholder="Tìm mã hư hỏng, tài sản hoặc cây xanh"
               value={lookup}
               onChange={(event) => setLookup(event.target.value)}
               enterButton="Xem điểm"
               onSearch={(value) => {
-                const found = mapLayer === 'assets' ? undefined : pointsRef.current.find((point) =>
+                const found = mapLayer === 'assets' || mapLayer === 'trees' ? undefined : pointsRef.current.find((point) =>
                   point.recordKey.toLowerCase() === value.trim().toLowerCase());
                 if (found) selectPoint(found);
                 else {
-                  const asset = mapLayer === 'defects' ? undefined : assetsRef.current.find((point) =>
+                  const asset = mapLayer === 'defects' || mapLayer === 'trees' ? undefined : assetsRef.current.find((point) =>
                     point.recordKey.toLowerCase() === value.trim().toLowerCase());
                   if (asset) {
                     map.current?.getView().animate({ center: fromLonLat([asset.longitude, asset.latitude]),
                       zoom: 16, duration: 350 });
                     void openAsset(asset.recordId);
-                  } else setError('Không tìm thấy mã trong khung bản đồ. Hãy di chuyển bản đồ hoặc phóng to.');
+                  } else {
+                    const tree = mapLayer === 'defects' || mapLayer === 'assets' ? undefined : treesRef.current.find((point) =>
+                      point.recordKey.toLowerCase() === value.trim().toLowerCase());
+                    if (tree) {
+                      map.current?.getView().animate({ center: fromLonLat([tree.longitude, tree.latitude]),
+                        zoom: 17, duration: 350 });
+                      void openTree(tree.recordId);
+                    } else setError('Không tìm thấy mã trong khung bản đồ. Hãy di chuyển bản đồ hoặc phóng to.');
+                  }
                 }
               }}
               style={{ maxWidth: 440 }}
@@ -700,7 +867,7 @@ export const VroadSurveyMapPage = () => {
           )}
           {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />}
 
-          {!selected && !selectedAsset && !isLoading && (
+          {!selected && !selectedAsset && !selectedTree && !isLoading && (
             <Space direction="vertical" size="middle" style={{ width: '100%' }}>
               <div style={{ padding: '12px 14px', borderRadius: 8, background: '#f0f7ff', border: '1px solid #bae0ff' }}>
                 <Space align="start">
@@ -785,6 +952,45 @@ export const VroadSurveyMapPage = () => {
               )}
             </Space>
           )}
+
+          {selectedTree && <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <div style={{ background: '#f6ffed', padding: '10px 14px', borderRadius: 8, border: '1px solid #b7eb8f' }}>
+              <Text strong style={{ color: '#237804' }}>📍 Tọa độ cây xanh (WGS84):</Text>
+              <div><Text copyable style={{ fontSize: 13 }}>{selectedTree.latitude.toFixed(6)}, {selectedTree.longitude.toFixed(6)}</Text></div>
+            </div>
+            <div style={{ background: '#fafafa', padding: '10px 14px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+              <Text strong>Tuyến: {selectedTree.routeName || 'Chưa rõ'}</Text>
+              <div><Text>Lý trình: {selectedTree.chainage || 'Chưa rõ'}</Text></div>
+            </div>
+            <Card size="small" title={<Space><Tag color="green">Cây xanh</Tag><span>{selectedTree.name || selectedTree.recordKey}</span></Space>} style={{ borderRadius: 8 }}>
+              <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Text>Mã cây: {selectedTree.recordKey}</Text>
+                <Text>Loài cây: {selectedTree.speciesName || 'Chưa xác định'}</Text>
+                {selectedTree.scientificName && <Text>Tên khoa học: <i>{selectedTree.scientificName}</i></Text>}
+                <Text>Tình trạng sinh trưởng: {selectedTree.healthStatus || 'Chưa cập nhật'}</Text>
+                <Text>Mức độ rủi ro: {selectedTree.riskLevel || 'Chưa đánh giá'}</Text>
+                {(selectedTree.diameterCm || selectedTree.heightM) && <Text>
+                  Kích thước: {selectedTree.diameterCm ? `đường kính ${selectedTree.diameterCm} cm` : ''}
+                  {selectedTree.diameterCm && selectedTree.heightM ? ' · ' : ''}
+                  {selectedTree.heightM ? `cao ${selectedTree.heightM} m` : ''}
+                </Text>}
+                {treeImageUrl ? <>
+                  <div role="button" tabIndex={0} aria-label={`Phóng to ảnh cây xanh ${selectedTree.recordKey}`}
+                    onClick={() => setTreeZoomed(true)}
+                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault(); setTreeZoomed(true);
+                    } }} style={{ position: 'relative', cursor: 'zoom-in', width: '100%', borderRadius: 8, overflow: 'hidden', border: '1px solid #d9d9d9' }}>
+                    <iframe title={`Ảnh cây xanh ${selectedTree.recordKey}`} src={treeImageUrl}
+                      sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer" loading="lazy" tabIndex={-1}
+                      style={{ width: '100%', height: 240, border: 0, pointerEvents: 'none' }} />
+                    <Tag color="green" style={{ position: 'absolute', bottom: 10, right: 8 }}>🔍 Nhấn để phóng to</Tag>
+                  </div>
+                  <a href={treeImageUrl} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Mở ảnh nguồn</a>
+                </> : <Text type="secondary">Chưa có ảnh cây xanh.</Text>}
+                <Button size="small" onClick={() => navigate('/green-trees')}>Xem danh sách cây xanh</Button>
+              </Space>
+            </Card>
+          </Space>}
 
           {selectedAsset && <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <div style={{ background: '#e6f4ff', padding: '10px 14px', borderRadius: 8, border: '1px solid #91caff' }}>
@@ -918,6 +1124,12 @@ export const VroadSurveyMapPage = () => {
     <Modal title={`Ảnh tài sản ${selectedAsset?.recordKey || ''}`} open={assetZoomed && !!assetImageUrl}
       footer={null} width="min(96vw, 1200px)" onCancel={() => setAssetZoomed(false)}>
       {assetImageUrl && <iframe title="Ảnh tài sản phóng to" src={assetImageUrl}
+        sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
+        style={{ width: '100%', height: '75vh', border: 0 }} />}
+    </Modal>
+    <Modal title={`Ảnh cây xanh ${selectedTree?.recordKey || ''}`} open={treeZoomed && !!treeImageUrl}
+      footer={null} width="min(96vw, 1200px)" onCancel={() => setTreeZoomed(false)}>
+      {treeImageUrl && <iframe title="Ảnh cây xanh phóng to" src={treeImageUrl}
         sandbox="allow-scripts allow-same-origin" referrerPolicy="no-referrer"
         style={{ width: '100%', height: '75vh', border: 0 }} />}
     </Modal>

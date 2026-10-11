@@ -49,6 +49,8 @@ class VroadSurveyControllerTest {
                 principal(2L, "ROLE_MANAGER", null), 109, 13, 110, 14, 100)).getStatusCode().value());
         assertEquals(403, assertThrows(ResponseStatusException.class, () -> controller.mapAssets(
                 principal(1L, "ROLE_VIEWER", null), 109, 13, 110, 14, 100)).getStatusCode().value());
+        assertEquals(403, assertThrows(ResponseStatusException.class, () -> controller.mapGreenTrees(
+                principal(1L, "ROLE_VIEWER", null), 109, 13, 110, 14, 100)).getStatusCode().value());
         verifyNoInteractions(database);
     }
 
@@ -225,8 +227,51 @@ class VroadSurveyControllerTest {
                 eq("ROLE_MANAGER"), eq(2L), eq(108.0), eq(110.0), eq(13.0), eq(15.0), eq(101));
         assertTrue(sql.getValue().contains("vroad_record_visible(r.id, ?)"));
         assertTrue(sql.getValue().contains("r.dataset_key = 'vroad_assets'"));
+        assertTrue(sql.getValue().contains("AND NOT"));
+        assertTrue(sql.getValue().contains("'cây xanh'"));
         assertEquals(400, assertThrows(ResponseStatusException.class, () -> controller.mapAssets(
                 principal(2L, "ROLE_ADMIN", null), 100, 13, 140, 15, 500)).getStatusCode().value());
+    }
+
+    @Test
+    void mapGreenTreesReturnsScopedCuratedMarkersWithinBounds() {
+        when(database.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreeMarker>>any(),
+                eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"), eq(108.0), eq(110.0),
+                eq(13.0), eq(15.0), eq(101))).thenReturn(List.of());
+
+        assertTrue(controller.mapGreenTrees(principal(2L, "ROLE_MANAGER", "kqldb_1"),
+                108, 13, 110, 15, 100).content().isEmpty());
+
+        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(database).query(sql.capture(),
+                org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreeMarker>>any(),
+                eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"), eq(108.0), eq(110.0),
+                eq(13.0), eq(15.0), eq(101));
+        assertTrue(sql.getValue().contains("a.dataset_code = 'green_trees'"));
+        assertTrue(sql.getValue().contains("vroad_record_visible(a.raw_record_id, ?)"));
+    }
+
+    @Test
+    void greenTreeDeepLinkReturnsCoordinatesAndLinkedPhoto() {
+        VroadSurveyController.GreenTreePoint tree = new VroadSurveyController.GreenTreePoint(
+                12L, "TREE-012", "Cây sao đen 012", 108.642033, 11.216864,
+                "QL.1", "Km 1622+400", "Sao đen", "Hopea odorata", "35", "8",
+                "Sinh trưởng tốt", "Thấp", "https://platform.vroad.vn/tree/12");
+        when(database.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreePoint>>any(),
+                eq(12L), eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"))).thenReturn(List.of(tree));
+
+        VroadSurveyController.GreenTreePoint selected = controller.greenTreePoint(
+                principal(2L, "ROLE_MANAGER", "kqldb_1"), 12L);
+
+        assertEquals("TREE-012", selected.recordKey());
+        assertEquals("Sao đen", selected.speciesName());
+        assertEquals("https://platform.vroad.vn/tree/12", selected.sourceImageUrl());
+        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(database).query(sql.capture(),
+                org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreePoint>>any(),
+                eq(12L), eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"));
+        assertTrue(sql.getValue().contains("vroad_image_reference"));
+        assertTrue(sql.getValue().contains("a.dataset_code = 'green_trees'"));
     }
 
     @Test

@@ -39,6 +39,12 @@ public class VroadSurveyController {
     private static final Pattern ROAD_CODE = Pattern.compile(
             "(?<![\\p{L}\\p{N}])QL\\.?([0-9]{1,3}[A-Z]?)(?![\\p{L}\\p{N}])",
             Pattern.CASE_INSENSITIVE);
+    private static final String GREEN_TREE_TYPE_FILTER = """
+            lower(trim(COALESCE(r.raw_payload->>'asset_type', ''))) IN
+                ('cây', 'cây xanh', 'cay', 'cay xanh', 'tree', 'green tree')
+            OR lower(trim(COALESCE(r.raw_payload->>'category', ''))) IN
+                ('cây', 'cây xanh', 'cay', 'cay xanh', 'tree', 'green tree')
+            """;
     private static final String POINTS = """
             WITH located AS (
                 SELECT r.id, r.record_key, r.raw_payload,
@@ -150,6 +156,7 @@ public class VroadSurveyController {
                     FROM raw_dataset_record r
                     WHERE r.dataset_key = 'vroad_assets'
                       AND (? = 'ROLE_ADMIN' OR vroad_record_visible(r.id, ?))
+                      AND NOT (""" + GREEN_TREE_TYPE_FILTER + ")" + """
                 )
                 SELECT id, record_key, lon, lat FROM located
                 WHERE lon BETWEEN ? AND ? AND lat BETWEEN ? AND ?
@@ -158,6 +165,49 @@ public class VroadSurveyController {
                 result.getDouble("lon"), result.getDouble("lat")), principal.getRoleCode(),
                 principal.getId(), minLon, maxLon, minLat, maxLat, limit + 1);
         return new MapAssets(rows.subList(0, Math.min(rows.size(), limit)), rows.size() > limit);
+    }
+
+    @GetMapping("/map/trees")
+    public MapGreenTrees mapGreenTrees(@AuthenticationPrincipal UserPrincipal principal,
+                                       @RequestParam double minLon, @RequestParam double minLat,
+                                       @RequestParam double maxLon, @RequestParam double maxLat,
+                                       @RequestParam(defaultValue = "500") int limit) {
+        requireReader(principal);
+        coordinates(minLon, minLat);
+        coordinates(maxLon, maxLat);
+        if (minLon >= maxLon || minLat >= maxLat || maxLon - minLon > 30 || maxLat - minLat > 30
+                || limit < 1 || limit > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Khung bản đồ hoặc giới hạn không hợp lệ");
+        }
+        List<GreenTreeMarker> rows = database.query("""
+                WITH located AS (
+                    SELECT a.id, a.record_id,
+                        COALESCE(
+                            CASE WHEN a.attributes->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (a.attributes->>'longitude')::double precision END,
+                            CASE WHEN raw.raw_payload->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (raw.raw_payload->>'longitude')::double precision END
+                        ) AS lon,
+                        COALESCE(
+                            CASE WHEN a.attributes->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (a.attributes->>'latitude')::double precision END,
+                            CASE WHEN raw.raw_payload->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (raw.raw_payload->>'latitude')::double precision END
+                        ) AS lat
+                    FROM asset_record a
+                    LEFT JOIN raw_dataset_record raw ON raw.id = a.raw_record_id
+                    WHERE a.dataset_code = 'green_trees' AND a.is_deleted = false
+                      AND (? = 'ROLE_ADMIN'
+                           OR (a.raw_record_id IS NOT NULL AND vroad_record_visible(a.raw_record_id, ?))
+                           OR (a.raw_record_id IS NULL AND a.branch_id = ?))
+                )
+                SELECT id, record_id, lon, lat FROM located
+                WHERE lon BETWEEN ? AND ? AND lat BETWEEN ? AND ?
+                ORDER BY id LIMIT ?
+                """, (result, row) -> new GreenTreeMarker(result.getLong("id"), result.getString("record_id"),
+                result.getDouble("lon"), result.getDouble("lat")), principal.getRoleCode(),
+                principal.getId(), principal.getBranchId(), minLon, maxLon, minLat, maxLat, limit + 1);
+        return new MapGreenTrees(rows.subList(0, Math.min(rows.size(), limit)), rows.size() > limit);
     }
 
     @GetMapping("/defects/{id}/map")
@@ -216,6 +266,61 @@ public class VroadSurveyController {
                 asset.category(), asset.assetType(), asset.condition(),
                 asset.assetSide(), asset.surveyDate(), asset.sourceImageUrl(), catalog,
                 truncated ? relatedDefects.subList(0, ASSET_DEFECT_LIMIT) : relatedDefects, truncated);
+    }
+
+    @GetMapping("/trees/{id}/map")
+    public GreenTreePoint greenTreePoint(@AuthenticationPrincipal UserPrincipal principal, @PathVariable long id) {
+        requireReader(principal);
+        if (id < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã cây xanh không hợp lệ");
+        return database.query("""
+                WITH located AS (
+                    SELECT a.id, a.record_id, a.name, a.route_name, a.lytrinh, a.attributes,
+                        raw.record_key AS source_record_key,
+                        COALESCE(
+                            CASE WHEN a.attributes->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (a.attributes->>'longitude')::double precision END,
+                            CASE WHEN raw.raw_payload->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (raw.raw_payload->>'longitude')::double precision END
+                        ) AS lon,
+                        COALESCE(
+                            CASE WHEN a.attributes->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (a.attributes->>'latitude')::double precision END,
+                            CASE WHEN raw.raw_payload->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
+                                THEN (raw.raw_payload->>'latitude')::double precision END
+                        ) AS lat
+                    FROM asset_record a
+                    LEFT JOIN raw_dataset_record raw ON raw.id = a.raw_record_id
+                    WHERE a.id = ? AND a.dataset_code = 'green_trees' AND a.is_deleted = false
+                      AND (? = 'ROLE_ADMIN'
+                           OR (a.raw_record_id IS NOT NULL AND vroad_record_visible(a.raw_record_id, ?))
+                           OR (a.raw_record_id IS NULL AND a.branch_id = ?))
+                )
+                SELECT item.id, item.record_id, item.name, item.lon, item.lat,
+                       item.route_name, item.lytrinh,
+                       item.attributes->>'species_name' AS species_name,
+                       item.attributes->>'scientific_name' AS scientific_name,
+                       item.attributes->>'diameter_cm' AS diameter_cm,
+                       item.attributes->>'height_m' AS height_m,
+                       COALESCE(NULLIF(item.attributes->>'health_status', ''),
+                                NULLIF(item.attributes->>'condition', '')) AS health_status,
+                       item.attributes->>'risk_level' AS risk_level,
+                       photo.source_url AS source_image_url
+                FROM located item
+                LEFT JOIN vroad_image_reference photo
+                  ON photo.dataset_key = 'vroad_assets'
+                 AND photo.record_key = COALESCE(NULLIF(item.attributes->>'source_record_key', ''),
+                                                 item.source_record_key)
+                WHERE item.lat BETWEEN -90 AND 90 AND item.lon BETWEEN -180 AND 180
+                """, (result, row) -> new GreenTreePoint(
+                        result.getLong("id"), result.getString("record_id"), result.getString("name"),
+                        result.getDouble("lon"), result.getDouble("lat"), result.getString("route_name"),
+                        result.getString("lytrinh"), result.getString("species_name"),
+                        result.getString("scientific_name"), result.getString("diameter_cm"),
+                        result.getString("height_m"), result.getString("health_status"),
+                        result.getString("risk_level"), result.getString("source_image_url")),
+                id, principal.getRoleCode(), principal.getId(), principal.getBranchId()).stream().findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Không thấy cây xanh có tọa độ trong phạm vi được cấp"));
     }
 
     private List<DefectPoint> relatedDefects(UserPrincipal principal, AssetPoint asset) {
@@ -475,6 +580,8 @@ public class VroadSurveyController {
     public record MapPoints(List<DefectPoint> content, boolean truncated) {}
     public record AssetMarker(long recordId, String recordKey, double longitude, double latitude) {}
     public record MapAssets(List<AssetMarker> content, boolean truncated) {}
+    public record GreenTreeMarker(long recordId, String recordKey, double longitude, double latitude) {}
+    public record MapGreenTrees(List<GreenTreeMarker> content, boolean truncated) {}
     public record CategoryCount(String label, long count) {}
     public record SurveyOverview(long assets, long defects, long iriSegments, long resolvedCases,
                                  List<CategoryCount> defectTypes, List<CategoryCount> assetCategories) {}
@@ -504,6 +611,10 @@ public class VroadSurveyController {
                     assetType, condition, assetSide, surveyDate, sourceImageUrl, roadCatalog, List.of(), false);
         }
     }
+    public record GreenTreePoint(long recordId, String recordKey, String name, double longitude, double latitude,
+                                 String routeName, String chainage, String speciesName, String scientificName,
+                                 String diameterCm, String heightM, String healthStatus, String riskLevel,
+                                 String sourceImageUrl) {}
     public record RoadCatalog(String recordKey, String name, String lengthKm,
                               String startChainage, String endChainage) {}
 }

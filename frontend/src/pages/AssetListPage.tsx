@@ -830,6 +830,7 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
                 onClick={() => navigate(record.datasetKey === 'vroad_assets'
                   ? `/map?assetRecordId=${record.id}`
                   : record.datasetKey === 'vroad_defects' ? `/map?defectRecordId=${record.id}`
+                  : record.datasetKey === 'green_trees' ? `/map?treeRecordId=${record.id}`
                   : `/map/assets?dataset=${selectedDatasetKey}&id=${record.recordKey}&lat=${coords.lat}&lng=${coords.lon}`)}
               >
                 Mở GIS
@@ -1478,7 +1479,9 @@ export const AssetListPage: React.FC<AssetListPageProps> = ({
                             const coords = getCoordinates(detailRecord);
                             navigate(selectedDatasetKey === 'vroad_assets'
                               ? `/map?assetRecordId=${detailRecord.id}`
-                              : `/map?dataset=${selectedDatasetKey}&id=${detailRecord.recordKey}&lat=${coords?.lat}&lng=${coords?.lon}`);
+                              : selectedDatasetKey === 'green_trees'
+                                ? `/map?treeRecordId=${detailRecord.id}`
+                                : `/map?dataset=${selectedDatasetKey}&id=${detailRecord.recordKey}&lat=${coords?.lat}&lng=${coords?.lon}`);
                           }}
                         >
                           Mở Định vị trên Bản đồ Số WebGIS

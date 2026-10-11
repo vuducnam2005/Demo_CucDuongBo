@@ -64,13 +64,40 @@ export interface AssetMarker {
   latitude: number;
 }
 
+export type GreenTreeMarker = AssetMarker;
+
+export interface GreenTreePoint {
+  recordId: number;
+  recordKey: string;
+  name: string;
+  longitude: number;
+  latitude: number;
+  routeName: string | null;
+  chainage: string | null;
+  speciesName: string | null;
+  scientificName: string | null;
+  diameterCm: string | null;
+  heightM: string | null;
+  healthStatus: string | null;
+  riskLevel: string | null;
+  sourceImageUrl: string | null;
+}
+
 export const fetchVroadAssets = async (bbox: [number, number, number, number]) =>
   (await apiClient.get<{ content: AssetMarker[]; truncated: boolean }>('/api/vroad/map/assets', {
     params: { minLon: bbox[0], minLat: bbox[1], maxLon: bbox[2], maxLat: bbox[3], limit: 500 },
   })).data;
 
+export const fetchGreenTrees = async (bbox: [number, number, number, number]) =>
+  (await apiClient.get<{ content: GreenTreeMarker[]; truncated: boolean }>('/api/vroad/map/trees', {
+    params: { minLon: bbox[0], minLat: bbox[1], maxLon: bbox[2], maxLat: bbox[3], limit: 500 },
+  })).data;
+
 export const fetchVroadAsset = async (id: number, includeRelated = false): Promise<AssetPoint> =>
   (await apiClient.get<AssetPoint>(`/api/vroad/assets/${id}/map`, { params: { includeRelated } })).data;
+
+export const fetchGreenTree = async (id: number): Promise<GreenTreePoint> =>
+  (await apiClient.get<GreenTreePoint>(`/api/vroad/trees/${id}/map`)).data;
 
 export const fetchVroadDefect = async (id: number): Promise<DefectPoint> =>
   (await apiClient.get<DefectPoint>(`/api/vroad/defects/${id}/map`)).data;

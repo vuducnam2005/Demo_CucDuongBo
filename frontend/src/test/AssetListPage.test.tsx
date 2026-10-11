@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComponentProps } from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, App } from 'antd';
 import { AuthProvider } from '../context/AuthContext';
@@ -213,12 +213,18 @@ describe('AssetListPage Unit & Integration Tests', () => {
             <AuthProvider>
               <MemoryRouter initialEntries={[initialRoute]}>
                 <AssetListPage {...pageProps} />
+                <LocationProbe />
               </MemoryRouter>
             </AuthProvider>
           </App>
         </ConfigProvider>
       </QueryClientProvider>
     );
+  };
+
+  const LocationProbe = () => {
+    const location = useLocation();
+    return <span data-testid="location-probe" hidden>{location.pathname}{location.search}</span>;
   };
 
   beforeEach(() => {
@@ -283,6 +289,38 @@ describe('AssetListPage Unit & Integration Tests', () => {
     expect(screen.queryByRole('button', { name: /Mở WebGIS/i })).not.toBeInTheDocument();
     expect(api.fetchDatasetTree).not.toHaveBeenCalled();
     expect(api.fetchDatasetRecords).toHaveBeenCalledWith('green_trees', expect.any(Object));
+  });
+
+  it('opens a green-tree record with the dedicated GIS deep link', async () => {
+    vi.mocked(api.fetchDatasetMetadata).mockResolvedValue({
+      ...mockBridgeMetadata,
+      datasetKey: 'green_trees',
+      datasetName: 'Cây xanh',
+      totalRecords: 1,
+    });
+    vi.mocked(api.fetchDatasetRecords).mockResolvedValue({
+      content: [{
+        id: 301,
+        datasetKey: 'green_trees',
+        recordKey: 'TREE-301',
+        recordStatus: 'ACTIVE',
+        createdAt: '2026-10-05T00:00:00Z',
+        updatedAt: '2026-10-05T00:00:00Z',
+        payload: { fielddisplay: 'Cây sao đen 301', longitude: 108.642033, latitude: 11.216864 },
+      }],
+      page: 0, size: 20, totalElements: 1, totalPages: 1, first: true, last: true,
+    });
+
+    renderWithProviders(mockAdminUser, '/green-trees', {
+      fixedDatasetKey: 'green_trees',
+      pageTitle: 'Quản lý Cây xanh',
+      createButtonLabel: 'Thêm cây xanh',
+      emptyTitle: 'Chưa có dữ liệu cây xanh',
+      showMapAction: false,
+    });
+
+    fireEvent.click(await screen.findByRole('button', { name: /Mở GIS/i }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/map?treeRecordId=301');
   });
 
   it('keeps the empty other-assets module fully actionable', async () => {

@@ -13,6 +13,8 @@ vi.mock('../services/vroadApi', async (importOriginal) => {
     ...actual,
     fetchVroadPoints: vi.fn(),
     fetchVroadAssets: vi.fn(),
+    fetchGreenTrees: vi.fn(),
+    fetchGreenTree: vi.fn(),
     fetchVroadAsset: vi.fn(),
     fetchVroadDefect: vi.fn(),
     fetchRoadContext: vi.fn(),
@@ -45,6 +47,7 @@ describe('VroadSurveyMapPage Tests', () => {
 
     vi.mocked(vroadApi.fetchVroadPoints).mockResolvedValue({ content: [], truncated: false });
     vi.mocked(vroadApi.fetchVroadAssets).mockResolvedValue({ content: [], truncated: false });
+    vi.mocked(vroadApi.fetchGreenTrees).mockResolvedValue({ content: [], truncated: false });
   });
 
   const renderComponent = (initialEntries = ['/map']) => {
@@ -69,6 +72,7 @@ describe('VroadSurveyMapPage Tests', () => {
     expect(screen.getByText('Nền bản đồ:')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Chọn nền bản đồ').length).toBeGreaterThan(0);
     expect(screen.getByText(/Google Bản đồ/)).toBeInTheDocument();
+    expect(screen.getAllByText('Cây xanh').length).toBeGreaterThan(0);
   });
 
   it('renders right panel when asset is loaded', async () => {
@@ -100,5 +104,31 @@ describe('VroadSurveyMapPage Tests', () => {
     await waitFor(() => {
       expect(screen.getByText('Thông tin tại tọa độ')).toBeInTheDocument();
     });
+  });
+
+  it('opens a green tree deep link, selects the tree layer, and shows coordinates', async () => {
+    vi.mocked(vroadApi.fetchGreenTree).mockResolvedValue({
+      recordId: 12,
+      recordKey: 'TREE-012',
+      name: 'Cây sao đen 012',
+      longitude: 108.642033,
+      latitude: 11.216864,
+      routeName: 'QL.1',
+      chainage: 'Km 1622+400',
+      speciesName: 'Sao đen',
+      scientificName: 'Hopea odorata',
+      diameterCm: '35',
+      heightM: '8',
+      healthStatus: 'Sinh trưởng tốt',
+      riskLevel: 'Thấp',
+      sourceImageUrl: null,
+    });
+
+    renderComponent(['/map?treeRecordId=12']);
+
+    await waitFor(() => expect(vroadApi.fetchGreenTree).toHaveBeenCalledWith(12));
+    expect(await screen.findByText('Cây sao đen 012')).toBeInTheDocument();
+    expect(screen.getByText(/Loài cây: Sao đen/)).toBeInTheDocument();
+    expect(screen.getByText(/11.216864, 108.642033/)).toBeInTheDocument();
   });
 });
