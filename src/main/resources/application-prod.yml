@@ -25,7 +25,8 @@ spring:
       leak-detection-threshold: 5000
       pool-name: KchtProductionHikariPool
   flyway:
-    enabled: true
+    # Enable only when the Render database endpoint supports Flyway's direct JDBC connection.
+    enabled: ${FLYWAY_ENABLED:false}
     locations: classpath:db/migration
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
     baseline-version: ${FLYWAY_BASELINE_VERSION:21}
