@@ -23,6 +23,14 @@ public class DatasetQueryService {
 
     private static final Logger log = LoggerFactory.getLogger(DatasetQueryService.class);
     private static final Pattern SAFE_IDENTIFIER = Pattern.compile("^[a-zA-Z0-9_]{1,50}$");
+    private static final String GREEN_TREE_RAW_PREDICATE = """
+            (
+                lower(trim(COALESCE(raw_payload->>'asset_type', ''))) IN
+                    ('cây', 'cây xanh', 'cay', 'cay xanh', 'tree', 'green tree')
+                OR lower(trim(COALESCE(raw_payload->>'category', ''))) IN
+                    ('cây', 'cây xanh', 'cay', 'cay xanh', 'tree', 'green tree')
+            )
+            """;
 
     private static final Set<String> ALLOWED_SORT_COLS = Set.of(
             "id", "record_key", "created_at", "imported_at", "updated_at",
@@ -150,6 +158,7 @@ public class DatasetQueryService {
         StringBuilder whereSql = new StringBuilder(" WHERE dataset_key = ?");
         List<Object> params = new ArrayList<>();
         params.add(datasetKey);
+        appendDefaultDatasetExclusions(whereSql, datasetKey);
 
         // Tìm kiếm theo từ khóa (keyword / q)
         if (keyword != null && !keyword.isBlank()) {
@@ -213,7 +222,7 @@ public class DatasetQueryService {
         String orderClause = parseSafeSortClause(sortParam);
 
         // Kiểm tra xem có bộ lọc hoặc từ khóa tìm kiếm hay không
-        boolean hasFilterOrKeyword = (keyword != null && !keyword.isBlank()) ||
+        boolean hasFilterOrKeyword = isVroadAssets(datasetKey) || (keyword != null && !keyword.isBlank()) ||
                 (allParams != null && allParams.entrySet().stream()
                         .anyMatch(e -> e.getKey() != null && !e.getKey().isBlank() &&
                                 !List.of("q", "keyword", "page", "size", "sort").contains(e.getKey().toLowerCase())));
@@ -276,11 +285,13 @@ public class DatasetQueryService {
 
         if (idOrKey.matches("^[0-9]+$")) {
             sql = "SELECT id, dataset_key, record_key, raw_payload, record_status, imported_at AS created_at, updated_at " +
-                    "FROM raw_dataset_record WHERE dataset_key = ? AND (record_key = ? OR id = ?) LIMIT 1";
+                    "FROM raw_dataset_record WHERE dataset_key = ? AND (record_key = ? OR id = ?)"
+                    + defaultDatasetExclusion(datasetKey) + " LIMIT 1";
             params.add(Long.parseLong(idOrKey.trim()));
         } else {
             sql = "SELECT id, dataset_key, record_key, raw_payload, record_status, imported_at AS created_at, updated_at " +
-                    "FROM raw_dataset_record WHERE dataset_key = ? AND record_key = ? LIMIT 1";
+                    "FROM raw_dataset_record WHERE dataset_key = ? AND record_key = ?"
+                    + defaultDatasetExclusion(datasetKey) + " LIMIT 1";
         }
 
         List<RecordItemDto> records = jdbcTemplate.query(sql, this::mapRecordItemDto, params.toArray());
@@ -367,6 +378,7 @@ public class DatasetQueryService {
                   )
             """);
             params.add(datasetKey);
+            appendDefaultDatasetExclusions(sql, datasetKey);
         }
 
         // BBOX filter
@@ -569,6 +581,7 @@ public class DatasetQueryService {
                   )
             """);
             params.add(datasetKey);
+            appendDefaultDatasetExclusions(subSql, datasetKey);
         }
 
         // BBOX filter
@@ -907,6 +920,7 @@ public class DatasetQueryService {
         StringBuilder whereSql = new StringBuilder(" WHERE dataset_key = ?");
         List<Object> params = new ArrayList<>();
         params.add(datasetKey);
+        appendDefaultDatasetExclusions(whereSql, datasetKey);
 
         if (keyword != null && !keyword.isBlank()) {
             whereSql.append(" AND (record_key ILIKE ? OR raw_payload::text ILIKE ?)");
@@ -1039,6 +1053,20 @@ public class DatasetQueryService {
                 .append(")");
         params.addAll(values);
         params.addAll(values);
+    }
+
+    private void appendDefaultDatasetExclusions(StringBuilder sql, String datasetKey) {
+        if (isVroadAssets(datasetKey)) {
+            sql.append(" AND NOT ").append(GREEN_TREE_RAW_PREDICATE);
+        }
+    }
+
+    private String defaultDatasetExclusion(String datasetKey) {
+        return isVroadAssets(datasetKey) ? " AND NOT " + GREEN_TREE_RAW_PREDICATE : "";
+    }
+
+    private boolean isVroadAssets(String datasetKey) {
+        return "vroad_assets".equalsIgnoreCase(datasetKey);
     }
 
     private String escapeCsv(String val) {

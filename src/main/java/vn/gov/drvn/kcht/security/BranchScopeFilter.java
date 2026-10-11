@@ -37,13 +37,17 @@ public class BranchScopeFilter extends OncePerRequestFilter {
                     || path.matches("/api/local-documents/[0-9]+/versions(/[0-9]+/file)?")
                     || path.equals("/api/vroad/map/points") || path.equals("/api/vroad/map/near")
                     || path.equals("/api/vroad/map/assets")
+                    || path.equals("/api/vroad/map/trees")
                     || path.equals("/api/vroad/cases")
                     || path.matches("/api/vroad/assets/[0-9]+/map")
+                    || path.matches("/api/vroad/trees/[0-9]+/map")
                     || path.matches("/api/vroad/defects/[0-9]+/map")
-                    || path.matches("/api/vroad/defects/[0-9]+/evidence"));
+                    || path.matches("/api/vroad/defects/[0-9]+/evidence")
+                    || path.matches("/api/datasets/green_trees/(metadata|records|records/[^/]+|export)"));
             boolean scopedWrite = "POST".equals(request.getMethod())
                     && (path.matches("/api/region/assets/[0-9]+/(submit|decision)")
-                    || path.matches("/api/vroad/defects/[0-9]+/resolve"));
+                    || path.matches("/api/vroad/defects/[0-9]+/resolve")
+                    || path.matches("/api/datasets/green_trees/(records|import|import/preview)"));
             scopedWrite = scopedWrite || ("POST".equals(request.getMethod())
                     && (path.equals("/api/local-documents/folders")
                     || path.equals("/api/local-documents/upload")
@@ -53,7 +57,11 @@ public class BranchScopeFilter extends OncePerRequestFilter {
                     || path.matches("/api/local-documents/folders/[0-9]+")))
                     || ("PATCH".equals(request.getMethod())
                     && (path.matches("/api/local-documents/[0-9]+")
-                    || path.matches("/api/local-documents/folders/[0-9]+")));
+                    || path.matches("/api/local-documents/folders/[0-9]+")))
+                    || ("PUT".equals(request.getMethod())
+                    && path.matches("/api/datasets/green_trees/records/[^/]+"))
+                    || ("DELETE".equals(request.getMethod())
+                    && path.matches("/api/datasets/green_trees/records/[^/]+"));
             boolean hasBranch = principal.getBranchId() != null && !principal.getBranchId().isBlank();
             if (path.startsWith("/api/") && !accountEndpoint && (!hasBranch || (!scopedRead && !scopedWrite))) {
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN);

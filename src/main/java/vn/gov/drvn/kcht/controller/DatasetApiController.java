@@ -17,6 +17,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import vn.gov.drvn.kcht.dto.*;
 import vn.gov.drvn.kcht.service.DatasetQueryService;
+import vn.gov.drvn.kcht.greentree.GreenTreeCrudService;
+import vn.gov.drvn.kcht.greentree.GreenTreeQueryService;
 
 import java.security.Principal;
 import java.util.Map;
@@ -30,13 +32,16 @@ public class DatasetApiController {
     private final DatasetQueryService datasetQueryService;
     private final vn.gov.drvn.kcht.adapter.AssetQueryAdapter assetQueryAdapter;
     private final vn.gov.drvn.kcht.service.AssetCrudService assetCrudService;
+    private final GreenTreeCrudService greenTreeCrudService;
 
     public DatasetApiController(DatasetQueryService datasetQueryService,
                                 vn.gov.drvn.kcht.adapter.AssetQueryAdapter assetQueryAdapter,
-                                vn.gov.drvn.kcht.service.AssetCrudService assetCrudService) {
+                                 vn.gov.drvn.kcht.service.AssetCrudService assetCrudService,
+                                 GreenTreeCrudService greenTreeCrudService) {
         this.datasetQueryService = datasetQueryService;
         this.assetQueryAdapter = assetQueryAdapter;
         this.assetCrudService = assetCrudService;
+        this.greenTreeCrudService = greenTreeCrudService;
     }
 
     @GetMapping
@@ -267,7 +272,7 @@ public class DatasetApiController {
 
     @PostMapping("/{dataset}/records")
     @Operation(summary = "Thêm mới bản ghi tài sản vào tầng Curated",
-            description = "Tạo mới bản ghi tài sản hạ tầng đường bộ trong bảng curated asset_record. Tuyệt đối không chỉnh sửa raw_dataset_record. Ghi nhật ký kiểm toán audit_log.")
+            description = "Tạo bản ghi trong kho curated chuyên biệt của dataset. green_trees dùng module GreenTree; dataset tài sản khác dùng asset_record. Không chỉnh sửa raw_dataset_record và luôn ghi audit_log.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Tạo mới thành công",
                     content = @Content(schema = @Schema(implementation = RecordItemDto.class))),
@@ -285,13 +290,15 @@ public class DatasetApiController {
             Principal principal) {
         String username = principal != null ? principal.getName() : "user";
         String ip = request.getRemoteAddr();
-        RecordItemDto created = assetCrudService.createRecord(dataset, dto, userRole, username, ip);
+        RecordItemDto created = isGreenTrees(dataset)
+                ? greenTreeCrudService.createRecord(dto, userRole, username, ip)
+                : assetCrudService.createRecord(dataset, dto, userRole, username, ip);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{dataset}/records/{id}")
     @Operation(summary = "Cập nhật bản ghi tài sản với Khóa lạc quan (Optimistic Locking)",
-            description = "Cập nhật thông tin kỹ thuật bản ghi tài sản. Chỉ tác động vào bảng curated asset_record, giữ liên kết raw và ghi audit_log. Kiểm tra số hiệu version để chống ghi đè đồng thời.")
+            description = "Cập nhật kho curated tương ứng với dataset, giữ liên kết raw, ghi audit_log và kiểm tra version để chống ghi đè đồng thời.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Cập nhật thành công",
                     content = @Content(schema = @Schema(implementation = RecordItemDto.class))),
@@ -315,7 +322,9 @@ public class DatasetApiController {
             Principal principal) {
         String username = principal != null ? principal.getName() : "user";
         String ip = request.getRemoteAddr();
-        return ResponseEntity.ok(assetCrudService.updateRecord(dataset, id, dto, userRole, username, ip));
+        return ResponseEntity.ok(isGreenTrees(dataset)
+                ? greenTreeCrudService.updateRecord(id, dto, userRole, username, ip)
+                : assetCrudService.updateRecord(dataset, id, dto, userRole, username, ip));
     }
 
     @DeleteMapping("/{dataset}/records/{id}")
@@ -347,7 +356,11 @@ public class DatasetApiController {
         String effectiveReason = (body != null && body.reason() != null) ? body.reason() : reason;
         String username = principal != null ? principal.getName() : "user";
         String ip = request.getRemoteAddr();
-        assetCrudService.deleteRecord(dataset, id, effectiveVersion, effectiveReason, userRole, username, ip);
+        if (isGreenTrees(dataset)) {
+            greenTreeCrudService.deleteRecord(id, effectiveVersion, effectiveReason, userRole, username, ip);
+        } else {
+            assetCrudService.deleteRecord(dataset, id, effectiveVersion, effectiveReason, userRole, username, ip);
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -367,7 +380,9 @@ public class DatasetApiController {
             @PathVariable("dataset") String dataset,
             @Valid @RequestBody ImportPreviewRequestDto req,
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
-        return ResponseEntity.ok(assetCrudService.previewImport(dataset, req.format(), req.content(), userRole));
+        return ResponseEntity.ok(isGreenTrees(dataset)
+                ? greenTreeCrudService.previewImport(req.format(), req.content(), userRole)
+                : assetCrudService.previewImport(dataset, req.format(), req.content(), userRole));
     }
 
     @PostMapping("/{dataset}/import")
@@ -390,6 +405,12 @@ public class DatasetApiController {
             Principal principal) {
         String username = principal != null ? principal.getName() : "user";
         String ip = request.getRemoteAddr();
-        return ResponseEntity.ok(assetCrudService.executeImport(dataset, req, userRole, username, ip));
+        return ResponseEntity.ok(isGreenTrees(dataset)
+                ? greenTreeCrudService.executeImport(req, userRole, username, ip)
+                : assetCrudService.executeImport(dataset, req, userRole, username, ip));
+    }
+
+    private boolean isGreenTrees(String dataset) {
+        return GreenTreeQueryService.DATASET_KEY.equalsIgnoreCase(dataset);
     }
 }

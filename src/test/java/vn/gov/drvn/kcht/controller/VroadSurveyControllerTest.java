@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
+import vn.gov.drvn.kcht.greentree.GreenTreeMapService;
 import vn.gov.drvn.kcht.security.UserPrincipal;
 
 import java.util.List;
@@ -24,7 +25,8 @@ import static org.mockito.Mockito.when;
 
 class VroadSurveyControllerTest {
     private final JdbcTemplate database = mock(JdbcTemplate.class);
-    private final VroadSurveyController controller = new VroadSurveyController(database);
+    private final GreenTreeMapService greenTreeMapService = mock(GreenTreeMapService.class);
+    private final VroadSurveyController controller = new VroadSurveyController(database, greenTreeMapService);
 
     @Test
     void defectDeepLinkRejectsInvalidIdentifiersBeforeAnyQuery() {
@@ -235,30 +237,28 @@ class VroadSurveyControllerTest {
 
     @Test
     void mapGreenTreesReturnsScopedCuratedMarkersWithinBounds() {
-        when(database.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreeMarker>>any(),
-                eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"), eq(108.0), eq(110.0),
-                eq(13.0), eq(15.0), eq(101))).thenReturn(List.of());
+        GreenTreeMapService.Marker marker = new GreenTreeMapService.Marker(12L, "TREE-012", 109.2, 13.4);
+        when(greenTreeMapService.markers(org.mockito.ArgumentMatchers.any(UserPrincipal.class),
+                eq(108.0), eq(13.0), eq(110.0), eq(15.0), eq(100)))
+                .thenReturn(new GreenTreeMapService.MarkerPage(List.of(marker), false));
 
-        assertTrue(controller.mapGreenTrees(principal(2L, "ROLE_MANAGER", "kqldb_1"),
-                108, 13, 110, 15, 100).content().isEmpty());
+        VroadSurveyController.MapGreenTrees result = controller.mapGreenTrees(
+                principal(2L, "ROLE_MANAGER", "kqldb_1"), 108, 13, 110, 15, 100);
 
-        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(database).query(sql.capture(),
-                org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreeMarker>>any(),
-                eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"), eq(108.0), eq(110.0),
-                eq(13.0), eq(15.0), eq(101));
-        assertTrue(sql.getValue().contains("a.dataset_code = 'green_trees'"));
-        assertTrue(sql.getValue().contains("vroad_record_visible(a.raw_record_id, ?)"));
+        assertEquals(1, result.content().size());
+        assertEquals("TREE-012", result.content().get(0).recordKey());
+        verify(greenTreeMapService).markers(org.mockito.ArgumentMatchers.any(UserPrincipal.class),
+                eq(108.0), eq(13.0), eq(110.0), eq(15.0), eq(100));
     }
 
     @Test
     void greenTreeDeepLinkReturnsCoordinatesAndLinkedPhoto() {
-        VroadSurveyController.GreenTreePoint tree = new VroadSurveyController.GreenTreePoint(
+        GreenTreeMapService.TreePoint tree = new GreenTreeMapService.TreePoint(
                 12L, "TREE-012", "Cây sao đen 012", 108.642033, 11.216864,
                 "QL.1", "Km 1622+400", "Sao đen", "Hopea odorata", "35", "8",
                 "Sinh trưởng tốt", "Thấp", "https://platform.vroad.vn/tree/12");
-        when(database.query(anyString(), org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreePoint>>any(),
-                eq(12L), eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"))).thenReturn(List.of(tree));
+        when(greenTreeMapService.detail(org.mockito.ArgumentMatchers.any(UserPrincipal.class), eq(12L)))
+                .thenReturn(tree);
 
         VroadSurveyController.GreenTreePoint selected = controller.greenTreePoint(
                 principal(2L, "ROLE_MANAGER", "kqldb_1"), 12L);
@@ -266,12 +266,7 @@ class VroadSurveyControllerTest {
         assertEquals("TREE-012", selected.recordKey());
         assertEquals("Sao đen", selected.speciesName());
         assertEquals("https://platform.vroad.vn/tree/12", selected.sourceImageUrl());
-        org.mockito.ArgumentCaptor<String> sql = org.mockito.ArgumentCaptor.forClass(String.class);
-        verify(database).query(sql.capture(),
-                org.mockito.ArgumentMatchers.<RowMapper<VroadSurveyController.GreenTreePoint>>any(),
-                eq(12L), eq("ROLE_MANAGER"), eq(2L), eq("kqldb_1"));
-        assertTrue(sql.getValue().contains("vroad_image_reference"));
-        assertTrue(sql.getValue().contains("a.dataset_code = 'green_trees'"));
+        verify(greenTreeMapService).detail(org.mockito.ArgumentMatchers.any(UserPrincipal.class), eq(12L));
     }
 
     @Test

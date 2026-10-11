@@ -35,7 +35,7 @@ import java.util.*;
 public class AssetCrudService {
 
     private static final Logger log = LoggerFactory.getLogger(AssetCrudService.class);
-    private static final Set<String> MANAGED_DATASETS = Set.of("green_trees", "other_assets");
+    private static final Set<String> MANAGED_DATASETS = Set.of("other_assets");
 
     private final AssetRecordRepository assetRecordRepository;
     private final RawDatasetRecordRepository rawDatasetRecordRepository;
@@ -70,6 +70,7 @@ public class AssetCrudService {
      */
     @Transactional
     public RecordItemDto createRecord(String datasetKey, AssetCreateUpdateDto dto, String userRole, String username, String ip) {
+        rejectGreenTreeDataset(datasetKey);
         permissionService.checkPermission("ASSET", datasetKey, "CREATE", userRole);
         ensureDatasetRegistered(datasetKey);
         validateBusinessRules(dto);
@@ -139,6 +140,7 @@ public class AssetCrudService {
     @Transactional
     public RecordItemDto updateRecord(String datasetKey, String idOrKey, AssetCreateUpdateDto dto,
                                       String userRole, String username, String ip) {
+        rejectGreenTreeDataset(datasetKey);
         permissionService.checkPermission("ASSET", datasetKey, "UPDATE", userRole);
         validateBusinessRules(dto);
 
@@ -210,6 +212,7 @@ public class AssetCrudService {
     @Transactional
     public void deleteRecord(String datasetKey, String idOrKey, Integer version, String reason,
                              String userRole, String username, String ip) {
+        rejectGreenTreeDataset(datasetKey);
         permissionService.checkPermission("ASSET", datasetKey, "DELETE", userRole);
 
         AssetRecordEntity entity = findOrPromoteAsset(datasetKey, idOrKey);
@@ -243,6 +246,7 @@ public class AssetCrudService {
      * Không ghi bất kỳ dữ liệu nào vào CSDL.
      */
     public ImportPreviewResponseDto previewImport(String datasetKey, String format, String content, String userRole) {
+        rejectGreenTreeDataset(datasetKey);
         permissionService.checkPermission("ASSET", datasetKey, "READ", userRole);
         ensureDatasetRegistered(datasetKey);
 
@@ -280,6 +284,7 @@ public class AssetCrudService {
      */
     public ImportExecutionResponseDto executeImport(String datasetKey, ImportExecutionRequestDto req,
                                                     String userRole, String username, String ip) {
+        rejectGreenTreeDataset(datasetKey);
         // Yêu cầu quyền IMPORT:CREATE (ROLE_ADMIN hoặc ROLE_MANAGER)
         permissionService.checkPermission("IMPORT", datasetKey, "CREATE", userRole);
         ensureDatasetRegistered(datasetKey);
@@ -610,7 +615,6 @@ public class AssetCrudService {
     private String resolveAssetType(String datasetKey) {
         if (datasetKey == null) return "GENERAL";
         String lower = datasetKey.toLowerCase();
-        if ("green_trees".equals(lower)) return "TREE";
         if ("other_assets".equals(lower)) return "OTHER";
         if (lower.contains("bridge")) return "BRIDGE";
         if (lower.contains("sign")) return "ROAD_SIGN";
@@ -626,6 +630,12 @@ public class AssetCrudService {
                 .filter(dataset -> Boolean.TRUE.equals(dataset.getIsActive()))
                 .isEmpty()) {
             throw new ResourceNotFoundException("Không tìm thấy tập dữ liệu: " + datasetKey);
+        }
+    }
+
+    private void rejectGreenTreeDataset(String datasetKey) {
+        if ("green_trees".equalsIgnoreCase(datasetKey)) {
+            throw new BadRequestException("green_trees được quản lý bởi module GreenTree chuyên biệt");
         }
     }
 

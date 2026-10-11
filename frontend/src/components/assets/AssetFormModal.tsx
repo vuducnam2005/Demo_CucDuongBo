@@ -29,6 +29,7 @@ import {
   updateAssetRecord,
   getApiErrorMessage,
 } from '../../services/api';
+import { applyCoordinatePatch } from './greenTreeForm';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -209,8 +210,18 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
       setAttribute('planting_year', values.plantingYear);
       setAttribute('health_status', values.healthStatus);
       setAttribute('risk_level', values.riskLevel);
-      setAttribute('longitude', values.longitude);
-      setAttribute('latitude', values.latitude);
+      const initialPayload = initialRecord?.payload ?? {};
+      const hadCoordinates = initialPayload.longitude !== undefined
+        || initialPayload.latitude !== undefined
+        || currentAttributes.longitude !== undefined
+        || currentAttributes.latitude !== undefined;
+      applyCoordinatePatch(attributes, {
+        datasetKey,
+        mode,
+        hadCoordinates,
+        longitude: values.longitude,
+        latitude: values.latitude,
+      });
       setAttribute('notes', values.notes);
       setAttribute('asset_category', values.assetCategory);
       setAttribute('asset_type_name', values.assetTypeName);

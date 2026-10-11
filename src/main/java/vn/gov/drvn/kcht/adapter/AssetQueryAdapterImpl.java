@@ -25,6 +25,7 @@ import vn.gov.drvn.kcht.repository.AuditLogRepository;
 import vn.gov.drvn.kcht.repository.projection.AssetSpatialProjection;
 import vn.gov.drvn.kcht.service.DatasetPermissionService;
 import vn.gov.drvn.kcht.service.DatasetQueryService;
+import vn.gov.drvn.kcht.greentree.GreenTreeQueryService;
 
 import jakarta.persistence.criteria.Predicate;
 import java.nio.charset.StandardCharsets;
@@ -49,6 +50,7 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
     private final DatasetQueryService rawQueryService;
     private final DatasetPermissionService permissionService;
     private final ObjectMapper objectMapper;
+    private final GreenTreeQueryService greenTreeQueryService;
 
     public AssetQueryAdapterImpl(AssetRecordRepository assetRecordRepository,
                                  AssetGeometryRepository assetGeometryRepository,
@@ -56,7 +58,8 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
                                  AssetMapper assetMapper,
                                  DatasetQueryService rawQueryService,
                                  DatasetPermissionService permissionService,
-                                 ObjectMapper objectMapper) {
+                                 ObjectMapper objectMapper,
+                                 GreenTreeQueryService greenTreeQueryService) {
         this.assetRecordRepository = assetRecordRepository;
         this.assetGeometryRepository = assetGeometryRepository;
         this.auditLogRepository = auditLogRepository;
@@ -64,11 +67,13 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
         this.rawQueryService = rawQueryService;
         this.permissionService = permissionService;
         this.objectMapper = objectMapper;
+        this.greenTreeQueryService = greenTreeQueryService;
     }
 
     @Override
     public boolean isCuratedPopulated(String datasetCode) {
         if (datasetCode == null || datasetCode.isBlank()) return false;
+        if (GreenTreeQueryService.DATASET_KEY.equalsIgnoreCase(datasetCode.trim())) return true;
         try {
             return assetRecordRepository.countByDatasetCodeAndIsDeletedFalse(datasetCode.trim()) > 0;
         } catch (Exception e) {
@@ -80,6 +85,9 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
     @Override
     public PagedResponse<RecordItemDto> getRecords(String datasetKey, String keyword, Map<String, String> allParams,
                                                   String sortParam, int page, int size, String userRole) {
+        if (GreenTreeQueryService.DATASET_KEY.equalsIgnoreCase(datasetKey)) {
+            return greenTreeQueryService.getRecords(keyword, allParams, sortParam, page, size, userRole);
+        }
         permissionService.checkDatasetAccess(datasetKey, userRole);
         int validPage = Math.max(0, page);
         int validSize = Math.min(Math.max(1, size), 100);
@@ -104,6 +112,9 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
 
     @Override
     public RecordItemDto getRecordById(String datasetKey, String idOrKey, String userRole) {
+        if (GreenTreeQueryService.DATASET_KEY.equalsIgnoreCase(datasetKey)) {
+            return greenTreeQueryService.getRecordById(idOrKey, userRole);
+        }
         permissionService.checkDatasetAccess(datasetKey, userRole);
         if (idOrKey == null || idOrKey.isBlank()) {
             throw new BadRequestException("Mã định danh bản ghi không được để trống");
@@ -113,11 +124,13 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
             Optional<AssetRecordEntity> entityOpt = Optional.empty();
             if (idOrKey.matches("^[0-9]+$")) {
                 entityOpt = assetRecordRepository.findById(Long.parseLong(idOrKey))
-                        .filter(e -> !e.getIsDeleted() && datasetKey.equalsIgnoreCase(e.getDatasetCode()));
+                        .filter(e -> !e.getIsDeleted() && datasetKey.equalsIgnoreCase(e.getDatasetCode())
+                                && !isTreeInGeneralAssetDataset(datasetKey, e));
             }
             if (entityOpt.isEmpty()) {
                 entityOpt = assetRecordRepository.findByRecordIdAndIsDeletedFalse(idOrKey.trim())
-                        .filter(e -> datasetKey.equalsIgnoreCase(e.getDatasetCode()));
+                        .filter(e -> datasetKey.equalsIgnoreCase(e.getDatasetCode())
+                                && !isTreeInGeneralAssetDataset(datasetKey, e));
             }
 
             if (entityOpt.isPresent()) {
@@ -132,6 +145,9 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
     @Override
     public byte[] exportRecordsToCsv(String datasetKey, String keyword, Map<String, String> allParams,
                                      String sortParam, int limit, String userRole) {
+        if (GreenTreeQueryService.DATASET_KEY.equalsIgnoreCase(datasetKey)) {
+            return greenTreeQueryService.exportRecordsToCsv(keyword, allParams, sortParam, limit, userRole);
+        }
         permissionService.checkDatasetAccess(datasetKey, userRole);
         if (!isCuratedPopulated(datasetKey)) {
             return rawQueryService.exportRecordsToCsv(datasetKey, keyword, allParams, sortParam, limit, userRole);
@@ -297,6 +313,9 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("datasetCode"), datasetKey));
             predicates.add(cb.isFalse(root.get("isDeleted")));
+            if ("vroad_assets".equalsIgnoreCase(datasetKey)) {
+                predicates.add(cb.notEqual(cb.upper(root.get("assetType")), "TREE"));
+            }
 
             if (keyword != null && !keyword.isBlank()) {
                 String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
@@ -354,5 +373,10 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
         return escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") || escaped.contains("\r")
                 ? "\"" + escaped + "\""
                 : escaped;
+    }
+
+    private boolean isTreeInGeneralAssetDataset(String datasetKey, AssetRecordEntity entity) {
+        return "vroad_assets".equalsIgnoreCase(datasetKey)
+                && "TREE".equalsIgnoreCase(entity.getAssetType());
     }
 }

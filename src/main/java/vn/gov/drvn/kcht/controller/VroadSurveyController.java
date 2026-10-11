@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import vn.gov.drvn.kcht.greentree.GreenTreeMapService;
 import vn.gov.drvn.kcht.security.UserPrincipal;
 
 import java.io.IOException;
@@ -76,21 +77,24 @@ public class VroadSurveyController {
             """;
 
     private final JdbcTemplate database;
+    private final GreenTreeMapService greenTreeMapService;
 
-    public VroadSurveyController(JdbcTemplate database) {
+    public VroadSurveyController(JdbcTemplate database, GreenTreeMapService greenTreeMapService) {
         this.database = database;
+        this.greenTreeMapService = greenTreeMapService;
     }
 
     @GetMapping("/dashboard")
     public SurveyOverview overview(@AuthenticationPrincipal UserPrincipal principal) {
         requireReader(principal);
         long[] counts = database.queryForObject("""
-                SELECT COUNT(*) FILTER (WHERE dataset_key = 'vroad_assets') AS assets,
-                       COUNT(*) FILTER (WHERE dataset_key = 'vroad_defects') AS defects,
-                       COUNT(*) FILTER (WHERE dataset_key = 'vroad_iri') AS iri
-                FROM raw_dataset_record
-                WHERE dataset_key IN ('vroad_assets', 'vroad_defects', 'vroad_iri')
-                  AND (? = 'ROLE_ADMIN' OR vroad_record_visible(id, ?))
+                SELECT COUNT(*) FILTER (WHERE r.dataset_key = 'vroad_assets'
+                                        AND NOT (""" + GREEN_TREE_TYPE_FILTER + ")) AS assets," + """
+                       COUNT(*) FILTER (WHERE r.dataset_key = 'vroad_defects') AS defects,
+                       COUNT(*) FILTER (WHERE r.dataset_key = 'vroad_iri') AS iri
+                FROM raw_dataset_record r
+                WHERE r.dataset_key IN ('vroad_assets', 'vroad_defects', 'vroad_iri')
+                  AND (? = 'ROLE_ADMIN' OR vroad_record_visible(r.id, ?))
                 """, (result, row) -> new long[]{result.getLong("assets"), result.getLong("defects"),
                         result.getLong("iri")}, principal.getRoleCode(), principal.getId());
         Long resolved = database.queryForObject("""
@@ -105,11 +109,15 @@ public class VroadSurveyController {
     }
 
     private List<CategoryCount> breakdown(UserPrincipal principal, String dataset, String field) {
+        String excludeTrees = "vroad_assets".equals(dataset)
+                ? " AND NOT (" + GREEN_TREE_TYPE_FILTER + ")"
+                : "";
         return database.query("""
-                SELECT COALESCE(NULLIF(raw_payload->>?, ''), 'Chưa phân loại') AS label,
+                SELECT COALESCE(NULLIF(r.raw_payload->>?, ''), 'Chưa phân loại') AS label,
                        COUNT(*) AS count
-                FROM raw_dataset_record
-                WHERE dataset_key = ? AND (? = 'ROLE_ADMIN' OR vroad_record_visible(id, ?))
+                FROM raw_dataset_record r
+                WHERE r.dataset_key = ? AND (? = 'ROLE_ADMIN' OR vroad_record_visible(r.id, ?))
+                """ + excludeTrees + """
                 GROUP BY 1 ORDER BY count DESC, label LIMIT 8
                 """, (result, row) -> new CategoryCount(result.getString("label"), result.getLong("count")),
                 field, dataset, principal.getRoleCode(), principal.getId());
@@ -179,35 +187,13 @@ public class VroadSurveyController {
                 || limit < 1 || limit > 500) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Khung bản đồ hoặc giới hạn không hợp lệ");
         }
-        List<GreenTreeMarker> rows = database.query("""
-                WITH located AS (
-                    SELECT a.id, a.record_id,
-                        COALESCE(
-                            CASE WHEN a.attributes->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (a.attributes->>'longitude')::double precision END,
-                            CASE WHEN raw.raw_payload->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (raw.raw_payload->>'longitude')::double precision END
-                        ) AS lon,
-                        COALESCE(
-                            CASE WHEN a.attributes->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (a.attributes->>'latitude')::double precision END,
-                            CASE WHEN raw.raw_payload->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (raw.raw_payload->>'latitude')::double precision END
-                        ) AS lat
-                    FROM asset_record a
-                    LEFT JOIN raw_dataset_record raw ON raw.id = a.raw_record_id
-                    WHERE a.dataset_code = 'green_trees' AND a.is_deleted = false
-                      AND (? = 'ROLE_ADMIN'
-                           OR (a.raw_record_id IS NOT NULL AND vroad_record_visible(a.raw_record_id, ?))
-                           OR (a.raw_record_id IS NULL AND a.branch_id = ?))
-                )
-                SELECT id, record_id, lon, lat FROM located
-                WHERE lon BETWEEN ? AND ? AND lat BETWEEN ? AND ?
-                ORDER BY id LIMIT ?
-                """, (result, row) -> new GreenTreeMarker(result.getLong("id"), result.getString("record_id"),
-                result.getDouble("lon"), result.getDouble("lat")), principal.getRoleCode(),
-                principal.getId(), principal.getBranchId(), minLon, maxLon, minLat, maxLat, limit + 1);
-        return new MapGreenTrees(rows.subList(0, Math.min(rows.size(), limit)), rows.size() > limit);
+        GreenTreeMapService.MarkerPage page = greenTreeMapService.markers(
+                principal, minLon, minLat, maxLon, maxLat, limit);
+        List<GreenTreeMarker> markers = page.content().stream()
+                .map(item -> new GreenTreeMarker(item.recordId(), item.recordKey(),
+                        item.longitude(), item.latitude()))
+                .toList();
+        return new MapGreenTrees(markers, page.truncated());
     }
 
     @GetMapping("/defects/{id}/map")
@@ -235,6 +221,7 @@ public class VroadSurveyController {
                     FROM raw_dataset_record r
                     WHERE r.id = ? AND r.dataset_key = 'vroad_assets'
                       AND (? = 'ROLE_ADMIN' OR vroad_record_visible(r.id, ?))
+                      AND NOT (""" + GREEN_TREE_TYPE_FILTER + ")" + """
                 )
                 SELECT item.id, item.record_key, item.lat, item.lon,
                        item.raw_payload->>'route_name' AS route_name,
@@ -272,55 +259,10 @@ public class VroadSurveyController {
     public GreenTreePoint greenTreePoint(@AuthenticationPrincipal UserPrincipal principal, @PathVariable long id) {
         requireReader(principal);
         if (id < 1) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Mã cây xanh không hợp lệ");
-        return database.query("""
-                WITH located AS (
-                    SELECT a.id, a.record_id, a.name, a.route_name, a.lytrinh, a.attributes,
-                        raw.record_key AS source_record_key,
-                        COALESCE(
-                            CASE WHEN a.attributes->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (a.attributes->>'longitude')::double precision END,
-                            CASE WHEN raw.raw_payload->>'longitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (raw.raw_payload->>'longitude')::double precision END
-                        ) AS lon,
-                        COALESCE(
-                            CASE WHEN a.attributes->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (a.attributes->>'latitude')::double precision END,
-                            CASE WHEN raw.raw_payload->>'latitude' ~ '^-?[0-9]+([.][0-9]+)?$'
-                                THEN (raw.raw_payload->>'latitude')::double precision END
-                        ) AS lat
-                    FROM asset_record a
-                    LEFT JOIN raw_dataset_record raw ON raw.id = a.raw_record_id
-                    WHERE a.id = ? AND a.dataset_code = 'green_trees' AND a.is_deleted = false
-                      AND (? = 'ROLE_ADMIN'
-                           OR (a.raw_record_id IS NOT NULL AND vroad_record_visible(a.raw_record_id, ?))
-                           OR (a.raw_record_id IS NULL AND a.branch_id = ?))
-                )
-                SELECT item.id, item.record_id, item.name, item.lon, item.lat,
-                       item.route_name, item.lytrinh,
-                       item.attributes->>'species_name' AS species_name,
-                       item.attributes->>'scientific_name' AS scientific_name,
-                       item.attributes->>'diameter_cm' AS diameter_cm,
-                       item.attributes->>'height_m' AS height_m,
-                       COALESCE(NULLIF(item.attributes->>'health_status', ''),
-                                NULLIF(item.attributes->>'condition', '')) AS health_status,
-                       item.attributes->>'risk_level' AS risk_level,
-                       photo.source_url AS source_image_url
-                FROM located item
-                LEFT JOIN vroad_image_reference photo
-                  ON photo.dataset_key = 'vroad_assets'
-                 AND photo.record_key = COALESCE(NULLIF(item.attributes->>'source_record_key', ''),
-                                                 item.source_record_key)
-                WHERE item.lat BETWEEN -90 AND 90 AND item.lon BETWEEN -180 AND 180
-                """, (result, row) -> new GreenTreePoint(
-                        result.getLong("id"), result.getString("record_id"), result.getString("name"),
-                        result.getDouble("lon"), result.getDouble("lat"), result.getString("route_name"),
-                        result.getString("lytrinh"), result.getString("species_name"),
-                        result.getString("scientific_name"), result.getString("diameter_cm"),
-                        result.getString("height_m"), result.getString("health_status"),
-                        result.getString("risk_level"), result.getString("source_image_url")),
-                id, principal.getRoleCode(), principal.getId(), principal.getBranchId()).stream().findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Không thấy cây xanh có tọa độ trong phạm vi được cấp"));
+        GreenTreeMapService.TreePoint tree = greenTreeMapService.detail(principal, id);
+        return new GreenTreePoint(tree.recordId(), tree.recordKey(), tree.name(), tree.longitude(), tree.latitude(),
+                tree.routeName(), tree.chainage(), tree.speciesName(), tree.scientificName(), tree.diameterCm(),
+                tree.heightM(), tree.healthStatus(), tree.riskLevel(), tree.sourceImageUrl());
     }
 
     private List<DefectPoint> relatedDefects(UserPrincipal principal, AssetPoint asset) {

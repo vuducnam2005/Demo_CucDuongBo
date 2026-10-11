@@ -50,6 +50,8 @@ management:
         enabled: true
 
 kcht:
+  green-tree:
+    storage-mode: ${GREEN_TREE_STORAGE_MODE:LEGACY}
   data:
     dir: ${KCHT_DATA_DIR:C:\Data\kcht_json_2026-10-05}
   import:

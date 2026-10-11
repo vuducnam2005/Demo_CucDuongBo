@@ -208,7 +208,9 @@ export const AssetImportModal: React.FC<AssetImportModalProps> = ({
     >
       <Alert
         message="Nguyên tắc Nạp An toàn & Toàn vẹn Dữ liệu"
-        description="Nạp dữ liệu tác động trực tiếp vào bảng curated asset_record theo các batch độc lập. Nếu phát hiện vi phạm ràng buộc dữ liệu tại bất kỳ batch nào, toàn bộ batch đó sẽ được rollback tự động để bảo đảm zero data loss."
+        description={datasetKey === 'green_trees'
+          ? 'Nạp cây xanh đi qua module lưu trữ chuyên biệt và tuân theo storage mode hiện tại. Mỗi batch được rollback nguyên khối nếu có lỗi.'
+          : 'Nạp dữ liệu tác động vào kho curated theo các batch độc lập. Nếu một batch vi phạm ràng buộc, toàn bộ batch đó sẽ được rollback tự động.'}
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
