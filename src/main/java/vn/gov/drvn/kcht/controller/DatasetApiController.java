@@ -93,7 +93,7 @@ public class DatasetApiController {
             @Parameter(description = "Vai trò người dùng")
             @RequestHeader(value = "X-User-Role", required = false) String userRole) {
 
-        byte[] csvData = datasetQueryService.exportRecordsToCsv(dataset, q, allParams, sort, limit, userRole);
+        byte[] csvData = assetQueryAdapter.exportRecordsToCsv(dataset, q, allParams, sort, limit, userRole);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "text/csv; charset=UTF-8")
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + dataset + "_export.csv\"")

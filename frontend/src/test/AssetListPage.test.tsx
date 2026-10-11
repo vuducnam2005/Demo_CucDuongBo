@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ComponentProps } from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -197,7 +198,11 @@ describe('AssetListPage Unit & Integration Tests', () => {
     last: true,
   };
 
-  const renderWithProviders = (currentUser = mockAdminUser, initialRoute = '/assets?datasetKey=tbl_bridge') => {
+  const renderWithProviders = (
+    currentUser = mockAdminUser,
+    initialRoute = '/assets?datasetKey=tbl_bridge',
+    pageProps: ComponentProps<typeof AssetListPage> = {},
+  ) => {
     localStorage.setItem('kcht_access_token', 'valid_token');
     localStorage.setItem('kcht_user_profile', JSON.stringify(currentUser));
 
@@ -207,7 +212,7 @@ describe('AssetListPage Unit & Integration Tests', () => {
           <App>
             <AuthProvider>
               <MemoryRouter initialEntries={[initialRoute]}>
-                <AssetListPage />
+                <AssetListPage {...pageProps} />
               </MemoryRouter>
             </AuthProvider>
           </App>
@@ -250,6 +255,60 @@ describe('AssetListPage Unit & Integration Tests', () => {
     await waitFor(() => {
       expect(api.fetchDatasetTree).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('renders the dedicated green-tree module without the general asset tree', async () => {
+    vi.mocked(api.fetchDatasetMetadata).mockResolvedValue({
+      ...mockBridgeMetadata,
+      datasetKey: 'green_trees',
+      datasetName: 'Cây xanh',
+      totalRecords: 0,
+    });
+    vi.mocked(api.fetchDatasetRecords).mockResolvedValue({
+      content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, first: true, last: true,
+    });
+
+    renderWithProviders(mockAdminUser, '/green-trees', {
+      fixedDatasetKey: 'green_trees',
+      pageTitle: 'Quản lý Cây xanh',
+      createButtonLabel: 'Thêm cây xanh',
+      emptyTitle: 'Chưa có dữ liệu cây xanh',
+      showMapAction: false,
+    });
+
+    expect(await screen.findByText('Quản lý Cây xanh')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Thêm cây xanh/i })).toBeInTheDocument();
+    expect(screen.getByText('Chưa có dữ liệu cây xanh')).toBeInTheDocument();
+    expect(screen.queryByText('Cây Phân Cấp Dữ liệu')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mở WebGIS/i })).not.toBeInTheDocument();
+    expect(api.fetchDatasetTree).not.toHaveBeenCalled();
+    expect(api.fetchDatasetRecords).toHaveBeenCalledWith('green_trees', expect.any(Object));
+  });
+
+  it('keeps the empty other-assets module fully actionable', async () => {
+    vi.mocked(api.fetchDatasetMetadata).mockResolvedValue({
+      ...mockBridgeMetadata,
+      datasetKey: 'other_assets',
+      datasetName: 'Tài sản khác',
+      totalRecords: 0,
+    });
+    vi.mocked(api.fetchDatasetRecords).mockResolvedValue({
+      content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, first: true, last: true,
+    });
+
+    renderWithProviders(mockAdminUser, '/other-assets', {
+      fixedDatasetKey: 'other_assets',
+      pageTitle: 'Quản lý Tài sản khác',
+      createButtonLabel: 'Thêm tài sản khác',
+      emptyTitle: 'Chưa có dữ liệu tài sản khác',
+      showMapAction: false,
+    });
+
+    expect(await screen.findByText('Quản lý Tài sản khác')).toBeInTheDocument();
+    expect(screen.getByText('Chưa có dữ liệu tài sản khác')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Thêm tài sản khác/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Nhập dữ liệu/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Xuất file CSV/i })).toBeInTheDocument();
   });
 
   it('renders records table with dynamic columns for tbl_bridge', async () => {

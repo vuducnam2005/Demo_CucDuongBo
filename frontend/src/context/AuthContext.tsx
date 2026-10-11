@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { UserSummary, AuthResponse, getHttpStatus, getStoredToken, setStoredToken } from '../services/api';
+import {
+  UserSummary,
+  AuthResponse,
+  getHttpStatus,
+  getStoredToken,
+  hasStoredRefreshSession,
+  setStoredRefreshSession,
+  setStoredToken,
+} from '../services/api';
 import { loginApi, logoutApi, getMeApi, LoginParams } from '../services/authApi';
 
 interface AuthContextType {
@@ -85,6 +93,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onSessionChange?: () 
         setUser(null);
         setToken(null);
         setStoredToken(null);
+        setStoredRefreshSession(false);
         clearStoredProfile();
         onSessionChange?.();
       }
@@ -98,15 +107,13 @@ export const AuthProvider: React.FC<{ children: ReactNode; onSessionChange?: () 
       if (currentToken) {
         setToken(currentToken);
         await refreshUserProfile();
+      } else if (hasStoredRefreshSession()) {
+        // Only probe the HttpOnly cookie when this browser has a known refresh session.
+        await refreshUserProfile();
+        setToken(getStoredToken());
       } else {
-        // Try to recover via HttpOnly refresh cookie if available
-        try {
-          await refreshUserProfile();
-          setToken(getStoredToken());
-        } catch {
-          setUser(null);
-          setToken(null);
-        }
+        setUser(null);
+        clearStoredProfile();
       }
       setIsLoading(false);
     };
@@ -118,6 +125,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onSessionChange?: () 
       setUser(null);
       setToken(null);
       setStoredToken(null);
+      setStoredRefreshSession(false);
       clearStoredProfile();
       onSessionChange?.();
     };
@@ -146,6 +154,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onSessionChange?: () 
       setUser(null);
       setToken(null);
       setStoredToken(null);
+      setStoredRefreshSession(false);
       clearStoredProfile();
       onSessionChange?.();
     }

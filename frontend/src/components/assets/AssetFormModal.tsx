@@ -31,6 +31,7 @@ import {
 } from '../../services/api';
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 interface AssetFormValues {
   name: string;
@@ -56,6 +57,23 @@ interface AssetFormValues {
   bridgeLength?: number;
   bridgeWidth?: number;
   bridgeType?: string;
+  treeCode?: string;
+  speciesName?: string;
+  scientificName?: string;
+  diameterCm?: number;
+  heightM?: number;
+  canopyDiameterM?: number;
+  plantingYear?: number;
+  healthStatus?: string;
+  riskLevel?: string;
+  longitude?: number;
+  latitude?: number;
+  notes?: string;
+  assetCategory?: string;
+  assetTypeName?: string;
+  description?: string;
+  quantity?: number;
+  unit?: string;
 }
 
 const isJsonObject = (value: JsonValue | undefined): value is JsonObject =>
@@ -133,6 +151,23 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
           bridgeLength: asFormNumber(attributes.length) ?? asFormNumber(p.length),
           bridgeWidth: asFormNumber(attributes.width) ?? asFormNumber(p.width),
           bridgeType: asFormString(attributes.type) ?? asFormString(p.type),
+          treeCode: asFormString(attributes.tree_code) ?? asFormString(p.tree_code),
+          speciesName: asFormString(attributes.species_name) ?? asFormString(p.species_name),
+          scientificName: asFormString(attributes.scientific_name) ?? asFormString(p.scientific_name),
+          diameterCm: asFormNumber(attributes.diameter_cm) ?? asFormNumber(p.diameter_cm),
+          heightM: asFormNumber(attributes.height_m) ?? asFormNumber(p.height_m),
+          canopyDiameterM: asFormNumber(attributes.canopy_diameter_m) ?? asFormNumber(p.canopy_diameter_m),
+          plantingYear: asFormNumber(attributes.planting_year) ?? asFormNumber(p.planting_year),
+          healthStatus: asFormString(attributes.health_status) ?? asFormString(p.health_status),
+          riskLevel: asFormString(attributes.risk_level) ?? asFormString(p.risk_level),
+          longitude: asFormNumber(attributes.longitude) ?? asFormNumber(p.longitude),
+          latitude: asFormNumber(attributes.latitude) ?? asFormNumber(p.latitude),
+          notes: asFormString(attributes.notes) ?? asFormString(p.notes),
+          assetCategory: asFormString(attributes.asset_category) ?? asFormString(p.asset_category),
+          assetTypeName: asFormString(attributes.asset_type_name) ?? asFormString(p.asset_type_name),
+          description: asFormString(attributes.description) ?? asFormString(p.description),
+          quantity: asFormNumber(attributes.quantity) ?? asFormNumber(p.quantity),
+          unit: asFormString(attributes.unit) ?? asFormString(p.unit),
         });
       } else {
         // Create mode default values
@@ -152,12 +187,36 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
       setSubmitting(true);
 
       // Package dataset-specific attributes
-      const attributes: JsonObject = {};
-      if (values.shapeSignId) attributes.shape_sign_id = values.shapeSignId;
-      if (values.locationId) attributes.location_id = values.locationId;
-      if (values.bridgeLength !== undefined) attributes.length = values.bridgeLength;
-      if (values.bridgeWidth !== undefined) attributes.width = values.bridgeWidth;
-      if (values.bridgeType) attributes.type = values.bridgeType;
+      const currentAttributes = isJsonObject(initialRecord?.payload?.attributes)
+        ? initialRecord.payload.attributes
+        : {};
+      const attributes: JsonObject = { ...currentAttributes };
+      const setAttribute = (key: string, value: JsonValue | undefined) => {
+        if (value === undefined || value === null || value === '') delete attributes[key];
+        else attributes[key] = value;
+      };
+      setAttribute('shape_sign_id', values.shapeSignId);
+      setAttribute('location_id', values.locationId);
+      setAttribute('length', values.bridgeLength);
+      setAttribute('width', values.bridgeWidth);
+      setAttribute('type', values.bridgeType);
+      setAttribute('tree_code', values.treeCode);
+      setAttribute('species_name', values.speciesName);
+      setAttribute('scientific_name', values.scientificName);
+      setAttribute('diameter_cm', values.diameterCm);
+      setAttribute('height_m', values.heightM);
+      setAttribute('canopy_diameter_m', values.canopyDiameterM);
+      setAttribute('planting_year', values.plantingYear);
+      setAttribute('health_status', values.healthStatus);
+      setAttribute('risk_level', values.riskLevel);
+      setAttribute('longitude', values.longitude);
+      setAttribute('latitude', values.latitude);
+      setAttribute('notes', values.notes);
+      setAttribute('asset_category', values.assetCategory);
+      setAttribute('asset_type_name', values.assetTypeName);
+      setAttribute('description', values.description);
+      setAttribute('quantity', values.quantity);
+      setAttribute('unit', values.unit);
 
       const stateName = values.state === 'Approved'
         ? 'Đã duyệt'
@@ -206,7 +265,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
         onSuccess(updated);
       } else {
         const created = await createAssetRecord(datasetKey, payload);
-        message.success(`Đã thêm mới thành công tài sản: ${created.recordKey}`);
+        message.success(`Đã thêm mới thành công bản ghi: ${created.recordKey}`);
         onSuccess(created);
       }
       onClose();
@@ -249,7 +308,7 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
         <Space align="center">
           <SafetyCertificateOutlined style={{ color: '#1677ff' }} />
           <span>
-            {mode === 'create' ? 'Thêm mới Bản ghi Tài sản' : 'Chỉnh sửa Bản ghi Tài sản'} [
+            {mode === 'create' ? 'Thêm mới Bản ghi' : 'Chỉnh sửa Bản ghi'} [
             <strong style={{ color: '#003a8c' }}>{metadata?.datasetName || datasetKey}</strong>]
           </span>
         </Space>
@@ -318,13 +377,15 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
           <Col span={24}>
             <Form.Item
               name="name"
-              label="Tên Công trình / Tài sản Hạ tầng"
+              label={datasetKey === 'green_trees' ? 'Tên cây / Nhãn quản lý' : 'Tên Công trình / Tài sản Hạ tầng'}
               rules={[
                 { required: true, message: 'Vui lòng nhập tên công trình/tài sản' },
                 { max: 500, message: 'Tên không được vượt quá 500 ký tự' },
               ]}
             >
-              <Input placeholder="Ví dụ: Biển báo P.102 Cấm đi ngược chiều, Cầu Thăng Long..." />
+              <Input placeholder={datasetKey === 'green_trees'
+                ? 'Ví dụ: Cây sao đen số 01 - Km 12+300'
+                : 'Ví dụ: Biển báo P.102 Cấm đi ngược chiều, Cầu Thăng Long...'} />
             </Form.Item>
           </Col>
         </Row>
@@ -579,6 +640,128 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
                 </Form.Item>
               </Col>
             </Row>
+          </>
+        )}
+
+        {datasetKey === 'green_trees' && (
+          <>
+            <Divider orientation="left" plain>
+              <Text strong style={{ fontSize: 13, color: '#237804' }}>
+                Thông tin chuyên ngành cây xanh
+              </Text>
+            </Divider>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="treeCode" label="Mã cây">
+                  <Input placeholder="Ví dụ: CX-QL1-0001" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="speciesName" label="Tên loài cây">
+                  <Input placeholder="Ví dụ: Sao đen" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="scientificName" label="Tên khoa học">
+                  <Input placeholder="Ví dụ: Hopea odorata" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={6}>
+                <Form.Item name="diameterCm" label="Đường kính thân (cm)">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={1} />
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item name="heightM" label="Chiều cao (m)">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={1} />
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item name="canopyDiameterM" label="Đường kính tán (m)">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={1} />
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item name="plantingYear" label="Năm trồng">
+                  <InputNumber style={{ width: '100%' }} min={1900} max={new Date().getFullYear()} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="healthStatus" label="Tình trạng sinh trưởng">
+                  <Select allowClear options={[
+                    { value: 'Tốt', label: 'Tốt' },
+                    { value: 'Trung bình', label: 'Trung bình' },
+                    { value: 'Suy yếu', label: 'Suy yếu' },
+                    { value: 'Chết / cần thay thế', label: 'Chết / cần thay thế' },
+                  ]} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="riskLevel" label="Mức độ rủi ro">
+                  <Select allowClear options={[
+                    { value: 'Thấp', label: 'Thấp' },
+                    { value: 'Trung bình', label: 'Trung bình' },
+                    { value: 'Cao', label: 'Cao' },
+                    { value: 'Khẩn cấp', label: 'Khẩn cấp' },
+                  ]} />
+                </Form.Item>
+              </Col>
+              <Col span={4}>
+                <Form.Item name="longitude" label="Kinh độ">
+                  <InputNumber style={{ width: '100%' }} min={-180} max={180} precision={7} />
+                </Form.Item>
+              </Col>
+              <Col span={4}>
+                <Form.Item name="latitude" label="Vĩ độ">
+                  <InputNumber style={{ width: '100%' }} min={-90} max={90} precision={7} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="notes" label="Ghi chú chăm sóc / xử lý">
+              <TextArea rows={3} maxLength={2000} showCount />
+            </Form.Item>
+          </>
+        )}
+
+        {datasetKey === 'other_assets' && (
+          <>
+            <Divider orientation="left" plain>
+              <Text strong style={{ fontSize: 13, color: '#1677ff' }}>
+                Phân loại tài sản khác
+              </Text>
+            </Divider>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="assetCategory" label="Nhóm tài sản">
+                  <Input placeholder="Ví dụ: Thiết bị phụ trợ" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="assetTypeName" label="Loại tài sản">
+                  <Input placeholder="Ví dụ: Tủ điều khiển" />
+                </Form.Item>
+              </Col>
+              <Col span={4}>
+                <Form.Item name="quantity" label="Số lượng">
+                  <InputNumber style={{ width: '100%' }} min={0} precision={2} />
+                </Form.Item>
+              </Col>
+              <Col span={4}>
+                <Form.Item name="unit" label="Đơn vị tính">
+                  <Input placeholder="bộ, chiếc..." />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="description" label="Mô tả tài sản">
+              <TextArea rows={3} maxLength={2000} showCount />
+            </Form.Item>
+            <Form.Item name="notes" label="Ghi chú quản lý">
+              <TextArea rows={3} maxLength={2000} showCount />
+            </Form.Item>
           </>
         )}
       </Form>

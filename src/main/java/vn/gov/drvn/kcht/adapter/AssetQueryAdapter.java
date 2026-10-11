@@ -25,6 +25,12 @@ public interface AssetQueryAdapter {
     RecordItemDto getRecordById(String datasetKey, String idOrKey, String userRole);
 
     /**
+     * Xuất dữ liệu theo đúng tầng đọc đang được sử dụng (Curated hoặc Raw).
+     */
+    byte[] exportRecordsToCsv(String datasetKey, String keyword, Map<String, String> allParams,
+                              String sortParam, int limit, String userRole);
+
+    /**
      * Lấy dữ liệu không gian PostGIS trả về GeoJSON FeatureCollection theo BBOX.
      */
     GeoJsonFeatureCollectionDto getGeoData(String datasetKey, Double minLon, Double minLat,

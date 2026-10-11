@@ -68,6 +68,7 @@ public class AssetMapper {
         if (entity.getAttributes() != null && !entity.getAttributes().isBlank()) {
             try {
                 Map<String, Object> attrs = objectMapper.readValue(entity.getAttributes(), new TypeReference<>() {});
+                attrs.forEach(payloadMap::putIfAbsent);
                 payloadMap.put("attributes", attrs);
             } catch (Exception e) {
                 payloadMap.put("attributes", entity.getAttributes());

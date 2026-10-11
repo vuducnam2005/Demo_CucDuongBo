@@ -192,6 +192,11 @@ public class DatasetQueryService {
                     continue;
                 }
 
+                if ("exclude_asset_type".equalsIgnoreCase(key)) {
+                    appendExcludedAssetTypes(whereSql, params, value);
+                    continue;
+                }
+
                 // Hỗ trợ cả param dạng filter_route_code hoặc route_code
                 String fieldName = key.startsWith("filter_") ? key.substring(7) : key;
                 if (!SAFE_IDENTIFIER.matcher(fieldName).matches()) {
@@ -827,7 +832,9 @@ public class DatasetQueryService {
     public List<DatasetTreeNodeDto> getDatasetTree(String parentKey) {
         if (parentKey != null && !parentKey.isBlank()) {
             if ("group_all_assets".equalsIgnoreCase(parentKey.trim())) {
-                String sql = "SELECT dataset_key, dataset_name, total_records, kind FROM dataset_registry WHERE kind = 'asset' ORDER BY total_records DESC";
+                String sql = "SELECT dataset_key, dataset_name, total_records, kind FROM dataset_registry " +
+                        "WHERE kind = 'asset' AND is_active = true " +
+                        "AND dataset_key NOT IN ('green_trees', 'other_assets') ORDER BY total_records DESC";
                 return jdbcTemplate.query(sql, (rs, rowNum) -> new DatasetTreeNodeDto(
                         rs.getString("dataset_key"),
                         rs.getString("dataset_name") + " (" + rs.getLong("total_records") + ")",
@@ -864,6 +871,7 @@ public class DatasetQueryService {
                 FROM dataset_registry d
                 LEFT JOIN raw_dataset_record r ON r.dataset_key = d.dataset_key
                 WHERE d.is_active = true
+                  AND d.dataset_key NOT IN ('green_trees', 'other_assets')
                 GROUP BY d.dataset_key, d.dataset_name, d.kind
                 HAVING COUNT(r.id) > 0
                 ORDER BY d.dataset_name
@@ -917,6 +925,11 @@ public class DatasetQueryService {
                     "page".equalsIgnoreCase(key) || "size".equalsIgnoreCase(key) ||
                     "sort".equalsIgnoreCase(key) || "limit".equalsIgnoreCase(key) ||
                     "format".equalsIgnoreCase(key)) {
+                    continue;
+                }
+
+                if ("exclude_asset_type".equalsIgnoreCase(key)) {
+                    appendExcludedAssetTypes(whereSql, params, value);
                     continue;
                 }
 
@@ -1006,6 +1019,26 @@ public class DatasetQueryService {
         }
 
         return csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private void appendExcludedAssetTypes(StringBuilder whereSql, List<Object> params, String rawValues) {
+        List<String> values = Arrays.stream(rawValues.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .distinct()
+                .toList();
+        if (values.isEmpty()) {
+            return;
+        }
+        String placeholders = String.join(",", Collections.nCopies(values.size(), "?"));
+        whereSql.append(" AND lower(trim(COALESCE(raw_payload->>'asset_type', ''))) NOT IN (")
+                .append(placeholders)
+                .append(") AND lower(trim(COALESCE(raw_payload->>'category', ''))) NOT IN (")
+                .append(placeholders)
+                .append(")");
+        params.addAll(values);
+        params.addAll(values);
     }
 
     private String escapeCsv(String val) {

@@ -1,4 +1,10 @@
-import { apiClient, setStoredToken, AuthResponse, UserSummary } from './api';
+import {
+  apiClient,
+  setStoredRefreshSession,
+  setStoredToken,
+  AuthResponse,
+  UserSummary,
+} from './api';
 
 export interface LoginParams {
   username: string;
@@ -9,6 +15,7 @@ export const loginApi = async (params: LoginParams): Promise<AuthResponse> => {
   const response = await apiClient.post<AuthResponse>('/api/auth/login', params);
   if (response.data?.accessToken) {
     setStoredToken(response.data.accessToken);
+    setStoredRefreshSession(true);
   }
   return response.data;
 };
@@ -18,6 +25,7 @@ export const logoutApi = async (): Promise<void> => {
     await apiClient.post('/api/auth/logout', {});
   } finally {
     setStoredToken(null);
+    setStoredRefreshSession(false);
   }
 };
 
@@ -30,6 +38,7 @@ export const refreshApi = async (): Promise<AuthResponse> => {
   const response = await apiClient.post<AuthResponse>('/api/auth/refresh', {});
   if (response.data?.accessToken) {
     setStoredToken(response.data.accessToken);
+    setStoredRefreshSession(true);
   }
   return response.data;
 };

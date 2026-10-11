@@ -152,7 +152,7 @@ describe('Phase 11 CRUD & Administration Frontend Integration Tests', () => {
     renderWithRole(mockAdminUser);
 
     await waitFor(() => {
-      expect(screen.getByText('Biển báo hiệu đường bộ')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Biển báo hiệu đường bộ' })).toBeInTheDocument();
     });
 
     // Check presence of admin action buttons
@@ -165,7 +165,7 @@ describe('Phase 11 CRUD & Administration Frontend Integration Tests', () => {
     renderWithRole(mockViewerUser);
 
     await waitFor(() => {
-      expect(screen.getByText('Biển báo hiệu đường bộ')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Biển báo hiệu đường bộ' })).toBeInTheDocument();
     });
 
     // Viewer must NOT see create or import buttons
@@ -190,7 +190,7 @@ describe('Phase 11 CRUD & Administration Frontend Integration Tests', () => {
 
     // Modal title should appear
     await waitFor(() => {
-      expect(screen.getByText(/Thêm mới Bản ghi Tài sản/i)).toBeInTheDocument();
+      expect(screen.getByText(/Thêm mới Bản ghi/i)).toBeInTheDocument();
       expect(screen.getByText(/Bảo vệ Dữ liệu Hệ thống & Hình học Không gian/i)).toBeInTheDocument();
     });
   });

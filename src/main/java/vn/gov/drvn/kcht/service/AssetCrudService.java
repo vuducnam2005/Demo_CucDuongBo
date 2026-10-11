@@ -35,6 +35,7 @@ import java.util.*;
 public class AssetCrudService {
 
     private static final Logger log = LoggerFactory.getLogger(AssetCrudService.class);
+    private static final Set<String> MANAGED_DATASETS = Set.of("green_trees", "other_assets");
 
     private final AssetRecordRepository assetRecordRepository;
     private final RawDatasetRecordRepository rawDatasetRecordRepository;
@@ -70,6 +71,7 @@ public class AssetCrudService {
     @Transactional
     public RecordItemDto createRecord(String datasetKey, AssetCreateUpdateDto dto, String userRole, String username, String ip) {
         permissionService.checkPermission("ASSET", datasetKey, "CREATE", userRole);
+        ensureDatasetRegistered(datasetKey);
         validateBusinessRules(dto);
 
         String recordKey = datasetKey + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
@@ -121,6 +123,7 @@ public class AssetCrudService {
         entity.setRawRecordId(null); // Bản ghi curated tạo thủ công
 
         AssetRecordEntity saved = assetRecordRepository.saveAndFlush(entity);
+        refreshManagedDatasetCount(datasetKey);
 
         // Ghi nhật ký kiểm toán (Audit Log)
         recordAuditLog(username, "ASSET_CREATE", "asset_record", saved.getRecordId(), null,
@@ -191,6 +194,7 @@ public class AssetCrudService {
 
         entity.setUpdatedAt(OffsetDateTime.now());
         AssetRecordEntity saved = assetRecordRepository.saveAndFlush(entity);
+        refreshManagedDatasetCount(datasetKey);
 
         // Ghi Audit Log
         recordAuditLog(username, "ASSET_UPDATE", "asset_record", saved.getRecordId(),
@@ -226,6 +230,7 @@ public class AssetCrudService {
         entity.setDeletedBy(username != null ? username : "system");
         entity.setUpdatedAt(OffsetDateTime.now());
         AssetRecordEntity saved = assetRecordRepository.saveAndFlush(entity);
+        refreshManagedDatasetCount(datasetKey);
 
         // Ghi Audit Log
         String deleteNotice = "{\"is_deleted\": true, \"reason\": \"" + (reason != null ? reason : "Xóa mềm theo yêu cầu") + "\"}";
@@ -239,6 +244,7 @@ public class AssetCrudService {
      */
     public ImportPreviewResponseDto previewImport(String datasetKey, String format, String content, String userRole) {
         permissionService.checkPermission("ASSET", datasetKey, "READ", userRole);
+        ensureDatasetRegistered(datasetKey);
 
         if (content == null || content.isBlank()) {
             throw new BadRequestException("Nội dung tệp nạp không được để trống");
@@ -276,6 +282,7 @@ public class AssetCrudService {
                                                     String userRole, String username, String ip) {
         // Yêu cầu quyền IMPORT:CREATE (ROLE_ADMIN hoặc ROLE_MANAGER)
         permissionService.checkPermission("IMPORT", datasetKey, "CREATE", userRole);
+        ensureDatasetRegistered(datasetKey);
 
         if (req.content() == null || req.content().isBlank()) {
             throw new BadRequestException("Nội dung nạp không được để trống");
@@ -373,6 +380,7 @@ public class AssetCrudService {
                 String.format("{\"total\": %d, \"inserted\": %d, \"updated\": %d, \"batchSize\": %d}",
                         totalProcessed, insertedCount, updatedCount, batchSize),
                 ip, "Nạp dữ liệu hàng loạt thành công cho dataset " + datasetKey);
+        refreshManagedDatasetCount(datasetKey);
 
         return new ImportExecutionResponseDto(
                 datasetKey,
@@ -602,12 +610,35 @@ public class AssetCrudService {
     private String resolveAssetType(String datasetKey) {
         if (datasetKey == null) return "GENERAL";
         String lower = datasetKey.toLowerCase();
+        if ("green_trees".equals(lower)) return "TREE";
+        if ("other_assets".equals(lower)) return "OTHER";
         if (lower.contains("bridge")) return "BRIDGE";
         if (lower.contains("sign")) return "ROAD_SIGN";
         if (lower.contains("road")) return "ROAD";
         if (lower.contains("drain")) return "DRAINAGE";
         if (lower.contains("guard")) return "GUARDRAIL";
         return "GENERAL";
+    }
+
+    private void ensureDatasetRegistered(String datasetKey) {
+        if (datasetKey == null || datasetKey.isBlank()
+                || datasetRegistryRepository.findByDatasetKey(datasetKey.trim())
+                .filter(dataset -> Boolean.TRUE.equals(dataset.getIsActive()))
+                .isEmpty()) {
+            throw new ResourceNotFoundException("Không tìm thấy tập dữ liệu: " + datasetKey);
+        }
+    }
+
+    private void refreshManagedDatasetCount(String datasetKey) {
+        if (datasetKey == null || !MANAGED_DATASETS.contains(datasetKey.toLowerCase(Locale.ROOT))) {
+            return;
+        }
+        datasetRegistryRepository.findByDatasetKey(datasetKey).ifPresent(dataset -> {
+            long count = assetRecordRepository.countByDatasetCodeAndIsDeletedFalse(datasetKey);
+            dataset.setTotalRecords(Math.toIntExact(count));
+            dataset.setUpdatedAt(OffsetDateTime.now());
+            datasetRegistryRepository.save(dataset);
+        });
     }
 
     private String formatLytrinh(BigDecimal kmFrom, BigDecimal kmTo) {

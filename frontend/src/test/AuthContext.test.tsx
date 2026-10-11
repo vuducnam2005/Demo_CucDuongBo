@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 import * as authApi from '../services/authApi';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ const TestAuthConsumer: React.FC<{
   return (
     <div>
       <span data-testid="auth-status">{auth.isAuthenticated ? 'LOGGED_IN' : 'GUEST'}</span>
+      <span data-testid="auth-loading">{auth.isLoading ? 'LOADING' : 'READY'}</span>
       <span data-testid="user-role">{auth.user?.role || 'NONE'}</span>
       <span data-testid="is-admin">{auth.hasRole('ROLE_ADMIN') ? 'YES_ADMIN' : 'NO_ADMIN'}</span>
       <span data-testid="is-editor">{auth.hasRole(['ROLE_EDITOR', 'ROLE_MANAGER']) ? 'YES_EDITOR' : 'NO_EDITOR'}</span>
@@ -42,14 +43,45 @@ describe('AuthContext RBAC & Permissions Unit Tests', () => {
   });
 
   it('initializes with unauthenticated guest state when storage is empty', async () => {
+    const getMeSpy = vi.spyOn(authApi, 'getMeApi');
+
     render(
       <AuthProvider>
         <TestAuthConsumer />
       </AuthProvider>
     );
 
+    await waitFor(() => expect(screen.getByTestId('auth-loading')).toHaveTextContent('READY'));
+    expect(getMeSpy).not.toHaveBeenCalled();
     expect(screen.getByTestId('auth-status')).toHaveTextContent('GUEST');
     expect(screen.getByTestId('is-admin')).toHaveTextContent('NO_ADMIN');
+  });
+
+  it('recovers a known refresh session when the access token is missing', async () => {
+    const viewerUser = {
+      id: 4,
+      username: 'viewer_demo',
+      email: 'viewer@drvn.gov.vn',
+      fullName: 'Người xem',
+      role: 'ROLE_VIEWER',
+      roleName: 'Người xem',
+      active: true,
+      permissions: ['asset:read'],
+    };
+    localStorage.setItem('kcht_refresh_session', 'active');
+    vi.spyOn(authApi, 'getMeApi').mockImplementation(async () => {
+      localStorage.setItem('kcht_access_token', 'refreshed_token');
+      return viewerUser;
+    });
+
+    render(
+      <AuthProvider>
+        <TestAuthConsumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('auth-status')).toHaveTextContent('LOGGED_IN'));
+    expect(authApi.getMeApi).toHaveBeenCalledTimes(1);
   });
 
   it('correctly validates ADMIN role and wildcard permissions', async () => {

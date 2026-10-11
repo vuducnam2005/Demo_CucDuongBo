@@ -104,6 +104,15 @@ describe('MainLayout route, breadcrumb, and permission synchronization', () => {
     expect(within(adminGroup as HTMLElement).getByText('Quản trị hệ thống')).toBeInTheDocument();
   });
 
+  it('shows separate navigation entries for green trees and other assets', () => {
+    setAuthenticatedUser(adminUser);
+    renderLayout('/dashboard');
+
+    expect(screen.getByRole('menuitem', { name: /Danh mục tài sản/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Cây xanh/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Tài sản khác/i })).toBeInTheDocument();
+  });
+
   it('shows the full admin breadcrumb without creating a broken /admin link', () => {
     setAuthenticatedUser(adminUser);
     const { container } = renderLayout('/admin/users');

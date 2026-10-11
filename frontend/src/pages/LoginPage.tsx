@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Card,
   Form,
@@ -18,7 +18,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LoginParams } from '../services/authApi';
-import { getApiErrorMessage, getHttpStatus } from '../services/api';
+import { fetchHealth, getApiErrorMessage, getHttpStatus } from '../services/api';
 import { VroadBrand } from '../components/brand/VroadBrand';
 
 const { Title, Text } = Typography;
@@ -30,6 +30,11 @@ export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // Warm the API without blocking the login form, which reduces cold-start delay on submit.
+    void fetchHealth().catch(() => undefined);
+  }, []);
 
   const handleFinish = async (values: LoginParams) => {
     setErrorMessage(null);

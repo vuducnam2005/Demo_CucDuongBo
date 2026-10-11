@@ -79,6 +79,28 @@ export const App: React.FC = () => {
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardLanding />} />
                   <Route path="assets" element={<AssetListPage />} />
+                  <Route path="green-trees" element={
+                    <AssetListPage
+                      fixedDatasetKey="green_trees"
+                      pageTitle="Quản lý Cây xanh"
+                      pageDescription="Quản lý riêng hồ sơ cây xanh dọc tuyến; dữ liệu cây không còn hiển thị trong mục Tài sản."
+                      createButtonLabel="Thêm cây xanh"
+                      emptyTitle="Chưa có dữ liệu cây xanh"
+                      emptyDescription="Hãy thêm mới hoặc nhập tệp CSV/JSON để bắt đầu quản lý cây xanh."
+                      showMapAction={false}
+                    />
+                  } />
+                  <Route path="other-assets" element={
+                    <AssetListPage
+                      fixedDatasetKey="other_assets"
+                      pageTitle="Quản lý Tài sản khác"
+                      pageDescription="Quản lý các tài sản chưa thuộc những nhóm chuyên biệt trong hệ thống."
+                      createButtonLabel="Thêm tài sản khác"
+                      emptyTitle="Chưa có dữ liệu tài sản khác"
+                      emptyDescription="Phân hệ đã sẵn sàng đầy đủ chức năng. Hãy thêm mới hoặc nhập dữ liệu để bắt đầu."
+                      showMapAction={false}
+                    />
+                  } />
                   <Route path="map" element={<VroadSurveyMapPage />} />
                   <Route path="map/assets" element={<ProtectedRoute requiredRoles={['ROLE_ADMIN']}><WebGisPage /></ProtectedRoute>} />
                   <Route path="cases" element={<VroadCasesPage />} />

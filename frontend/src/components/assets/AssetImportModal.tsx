@@ -63,8 +63,16 @@ export const AssetImportModal: React.FC<AssetImportModalProps> = ({
   const [executionResult, setExecutionResult] = useState<ImportExecutionResponse | null>(null);
 
   // Sample templates for user convenience
-  const sampleCsv = `name,route_code,route_name,km_from,km_to,branch_id,state\nBiển báo P.102 Cấm đi ngược chiều,QL.1,Quốc lộ 1,128.500,128.550,kqldb_1,Approved\nBiển báo W.201a Chỗ ngoặt nguy hiểm,QL.1,Quốc lộ 1,129.200,129.250,kqldb_1,Approved`;
-  const sampleJson = `[\n  {\n    "name": "Biển báo P.102 Cấm đi ngược chiều",\n    "route_code": "QL.1",\n    "km_from": 128.5,\n    "km_to": 128.55,\n    "branch_id": "kqldb_1"\n  }\n]`;
+  const sampleCsv = datasetKey === 'green_trees'
+    ? `name,tree_code,species_name,scientific_name,route_code,lytrinh,branch_id,diameter_cm,height_m,health_status,risk_level\nCây sao đen số 01,CX-QL1-0001,Sao đen,Hopea odorata,QL.1,Km 12+300,kqldb_1,42.5,11.2,Tốt,Thấp`
+    : datasetKey === 'other_assets'
+      ? `name,asset_category,asset_type_name,description,route_code,lytrinh,branch_id,quantity,unit,active_status\nTủ điều khiển số 01,Thiết bị phụ trợ,Tủ điều khiển,Tủ điều khiển tại nút giao,QL.1,Km 15+200,kqldb_1,1,bộ,Đang khai thác`
+      : `name,route_code,route_name,km_from,km_to,branch_id,state\nBiển báo P.102 Cấm đi ngược chiều,QL.1,Quốc lộ 1,128.500,128.550,kqldb_1,Approved\nBiển báo W.201a Chỗ ngoặt nguy hiểm,QL.1,Quốc lộ 1,129.200,129.250,kqldb_1,Approved`;
+  const sampleJson = datasetKey === 'green_trees'
+    ? `[\n  {\n    "name": "Cây sao đen số 01",\n    "tree_code": "CX-QL1-0001",\n    "species_name": "Sao đen",\n    "scientific_name": "Hopea odorata",\n    "route_code": "QL.1",\n    "lytrinh": "Km 12+300",\n    "branch_id": "kqldb_1",\n    "health_status": "Tốt",\n    "risk_level": "Thấp"\n  }\n]`
+    : datasetKey === 'other_assets'
+      ? `[\n  {\n    "name": "Tủ điều khiển số 01",\n    "asset_category": "Thiết bị phụ trợ",\n    "asset_type_name": "Tủ điều khiển",\n    "route_code": "QL.1",\n    "lytrinh": "Km 15+200",\n    "branch_id": "kqldb_1",\n    "quantity": 1,\n    "unit": "bộ"\n  }\n]`
+      : `[\n  {\n    "name": "Biển báo P.102 Cấm đi ngược chiều",\n    "route_code": "QL.1",\n    "km_from": 128.5,\n    "km_to": 128.55,\n    "branch_id": "kqldb_1"\n  }\n]`;
 
   const handlePreview = async () => {
     if (!content.trim()) {

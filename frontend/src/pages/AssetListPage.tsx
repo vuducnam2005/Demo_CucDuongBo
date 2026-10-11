@@ -99,6 +99,18 @@ const DYNAMIC_COLUMN_ALLOWLIST: DynamicColumnConfig[] = [
   { fieldName: 'category', label: 'Nhóm tài sản', width: 170 },
   { fieldName: 'condition', label: 'Tình trạng khảo sát', width: 160 },
   { fieldName: 'chainage', label: 'Lý trình khảo sát', width: 150 },
+  { fieldName: 'tree_code', label: 'Mã cây', width: 130 },
+  { fieldName: 'species_name', label: 'Loài cây', width: 180 },
+  { fieldName: 'scientific_name', label: 'Tên khoa học', width: 190 },
+  { fieldName: 'diameter_cm', label: 'Đường kính thân (cm)', width: 160 },
+  { fieldName: 'height_m', label: 'Chiều cao (m)', width: 130 },
+  { fieldName: 'health_status', label: 'Tình trạng sinh trưởng', width: 180 },
+  { fieldName: 'risk_level', label: 'Mức độ rủi ro', width: 150 },
+  { fieldName: 'asset_category', label: 'Nhóm tài sản', width: 170 },
+  { fieldName: 'asset_type_name', label: 'Loại tài sản', width: 170 },
+  { fieldName: 'description', label: 'Mô tả', width: 220 },
+  { fieldName: 'quantity', label: 'Số lượng', width: 110 },
+  { fieldName: 'unit', label: 'Đơn vị tính', width: 120 },
 ];
 
 const ROAD_SOURCE_LABELS: Record<string, string> = {
@@ -137,6 +149,12 @@ const resolveAttribute = (payload: JsonObject | null, identify: string): Attribu
   if (!payload) return { kind: 'unmapped' };
   if (Object.prototype.hasOwnProperty.call(payload, identify)) {
     const value = toDisplayString(payload[identify]);
+    return value === null ? { kind: 'null' } : { kind: 'value', value };
+  }
+
+  const managedAttributes = payload.attributes;
+  if (isJsonObject(managedAttributes) && Object.prototype.hasOwnProperty.call(managedAttributes, identify)) {
+    const value = toDisplayString(managedAttributes[identify]);
     return value === null ? { kind: 'null' } : { kind: 'value', value };
   }
 
@@ -237,7 +255,27 @@ function updateTreeData(
   });
 }
 
-export const AssetListPage: React.FC = () => {
+export interface AssetListPageProps {
+  fixedDatasetKey?: string;
+  pageTitle?: string;
+  pageDescription?: string;
+  createButtonLabel?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  showMapAction?: boolean;
+}
+
+const GREEN_TREE_TYPES = 'Cây,Cây xanh,Cay,Cay xanh,Tree,Green tree';
+
+export const AssetListPage: React.FC<AssetListPageProps> = ({
+  fixedDatasetKey,
+  pageTitle = 'Cây Tài sản & Danh mục Hồ sơ KCHT Đường bộ',
+  pageDescription = 'Tra cứu tài sản khảo sát và tuyến đường đã nhập, tìm kiếm và phân trang.',
+  createButtonLabel = 'Thêm mới',
+  emptyTitle = 'Tập dữ liệu chưa có bản ghi',
+  emptyDescription = 'API trả về danh sách rỗng cho tập dữ liệu này.',
+  showMapAction = true,
+}) => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -246,7 +284,7 @@ export const AssetListPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Selected dataset from URL or default to vertical slice tbl_road_sign
-  const initialDataset = searchParams.get('datasetKey') || 'vroad_assets';
+  const initialDataset = fixedDatasetKey || searchParams.get('datasetKey') || 'vroad_assets';
   const initialBranch = searchParams.get('branch') || '';
 
   const [selectedDatasetKey, setSelectedDatasetKey] = useState<string>(initialDataset);
@@ -346,6 +384,14 @@ export const AssetListPage: React.FC = () => {
 
   // Sync state when URL params change
   useEffect(() => {
+    if (fixedDatasetKey) {
+      if (fixedDatasetKey !== selectedDatasetKey) {
+        setSelectedDatasetKey(fixedDatasetKey);
+        setPage(0);
+        setSelectedRowKeys([]);
+      }
+      return;
+    }
     const urlDataset = searchParams.get('datasetKey');
     if (urlDataset && urlDataset !== selectedDatasetKey) {
       setSelectedDatasetKey(urlDataset);
@@ -357,12 +403,13 @@ export const AssetListPage: React.FC = () => {
       setBranchFilter(urlBranch);
       setPage(0);
     }
-  }, [searchParams, selectedDatasetKey, branchFilter]);
+  }, [fixedDatasetKey, searchParams, selectedDatasetKey, branchFilter]);
 
   // 1. Fetch Tree Hierarchy
   const treeQuery = useQuery({
     queryKey: ['datasetTree'],
     queryFn: () => fetchDatasetTree(),
+    enabled: !fixedDatasetKey,
     staleTime: 5 * 60 * 1000,
     retry: shouldRetryQuery,
   });
@@ -404,8 +451,11 @@ export const AssetListPage: React.FC = () => {
     if (branchFilter) {
       p.filter_branch_id = branchFilter;
     }
+    if (!fixedDatasetKey && selectedDatasetKey === 'vroad_assets') {
+      p.exclude_asset_type = GREEN_TREE_TYPES;
+    }
     return p;
-  }, [page, pageSize, searchKeyword, branchFilter, sortField, sortOrder]);
+  }, [fixedDatasetKey, page, pageSize, searchKeyword, branchFilter, sortField, sortOrder, selectedDatasetKey]);
 
   const {
     data: recordsData,
@@ -462,6 +512,9 @@ export const AssetListPage: React.FC = () => {
         sort: `${sortField},${sortOrder}`,
         limit: 2000,
         filter_branch_id: branchFilter || undefined,
+        exclude_asset_type: !fixedDatasetKey && selectedDatasetKey === 'vroad_assets'
+          ? GREEN_TREE_TYPES
+          : undefined,
       });
 
       const url = window.URL.createObjectURL(blob);
@@ -583,7 +636,7 @@ export const AssetListPage: React.FC = () => {
         render: (_, __, idx) => page * pageSize + idx + 1,
       },
       {
-        title: 'Tên / Nhãn Tài sản',
+        title: selectedDatasetKey === 'green_trees' ? 'Tên cây / Nhãn quản lý' : 'Tên / Nhãn Tài sản',
         key: 'fielddisplay',
         width: 240,
         render: (_, record) => {
@@ -672,6 +725,54 @@ export const AssetListPage: React.FC = () => {
           render: (_, record) => renderAttribute(record.payload, 'location_id'),
         }
       );
+    } else if (selectedDatasetKey === 'green_trees') {
+      cols.push(
+        {
+          title: 'Mã cây',
+          key: 'tree_code',
+          width: 130,
+          render: (_, record) => renderAttribute(record.payload, 'tree_code'),
+        },
+        {
+          title: 'Loài cây',
+          key: 'species_name',
+          width: 170,
+          render: (_, record) => renderAttribute(record.payload, 'species_name'),
+        },
+        {
+          title: 'Sinh trưởng',
+          key: 'health_status',
+          width: 150,
+          render: (_, record) => renderAttribute(record.payload, 'health_status'),
+        },
+        {
+          title: 'Rủi ro',
+          key: 'risk_level',
+          width: 120,
+          render: (_, record) => renderAttribute(record.payload, 'risk_level'),
+        },
+      );
+    } else if (selectedDatasetKey === 'other_assets') {
+      cols.push(
+        {
+          title: 'Nhóm tài sản',
+          key: 'asset_category',
+          width: 170,
+          render: (_, record) => renderAttribute(record.payload, 'asset_category'),
+        },
+        {
+          title: 'Loại tài sản',
+          key: 'asset_type_name',
+          width: 170,
+          render: (_, record) => renderAttribute(record.payload, 'asset_type_name'),
+        },
+        {
+          title: 'Số lượng',
+          key: 'quantity',
+          width: 110,
+          render: (_, record) => renderAttribute(record.payload, 'quantity'),
+        },
+      );
     } else if (selectedDatasetKey === 'mst_national_road' || selectedDatasetKey === 'mst_national_expressway') {
       cols.push(
         {
@@ -754,8 +855,12 @@ export const AssetListPage: React.FC = () => {
   })();
 
   // Filtered tree nodes by search input
+  const displayedTreeData = useMemo(
+    () => treeData.length > 0 ? treeData : (treeQuery.data ?? []),
+    [treeData, treeQuery.data],
+  );
   const filteredTreeData = useMemo<DatasetTreeNode[]>(() => {
-    if (!treeSearch.trim()) return treeData;
+    if (!treeSearch.trim()) return displayedTreeData;
     const term = treeSearch.toLowerCase();
     const filterNodes = (nodes: DatasetTreeNode[]): DatasetTreeNode[] => {
       const res: DatasetTreeNode[] = [];
@@ -773,8 +878,8 @@ export const AssetListPage: React.FC = () => {
       }
       return res;
     };
-    return filterNodes(treeData);
-  }, [treeData, treeSearch]);
+    return filterNodes(displayedTreeData);
+  }, [displayedTreeData, treeSearch]);
 
   // Bulk row selection configuration
   const rowSelection = canBulkAction
@@ -791,16 +896,16 @@ export const AssetListPage: React.FC = () => {
       {/* Page Title & Breadcrumb header */}
       <div style={{ marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0, color: '#003a8c' }}>
-          Cây Tài sản & Danh mục Hồ sơ KCHT Đường bộ
+          {pageTitle}
         </Title>
         <Paragraph type="secondary" style={{ margin: '4px 0 0 0', fontSize: 13 }}>
-          Tra cứu tài sản khảo sát và tuyến đường đã nhập, tìm kiếm và phân trang.
+          {pageDescription}
         </Paragraph>
       </div>
 
       <Row gutter={[16, 16]}>
         {/* Left Side: Tree Hierarchy with Lazy-load */}
-        <Col xs={24} md={8} lg={6}>
+        {!fixedDatasetKey && <Col xs={24} md={8} lg={6}>
           <Card
             title={
               <Space>
@@ -818,7 +923,7 @@ export const AssetListPage: React.FC = () => {
                 TRUY CẬP NHANH
               </Text>
               <Space direction="vertical" style={{ width: '100%' }} size={6}>
-                {treeData.flatMap((group) => group.children ?? [])
+                {displayedTreeData.flatMap((group) => group.children ?? [])
                   .filter((dataset) => ['vroad_assets', 'mst_national_road', 'mst_national_expressway',
                     'tbl_road_sign', 'tbl_bridge'].includes(dataset.datasetKey ?? ''))
                   .map((dataset) => <Button key={dataset.key} block size="small"
@@ -872,10 +977,10 @@ export const AssetListPage: React.FC = () => {
               )}
             </div>
           </Card>
-        </Col>
+        </Col>}
 
         {/* Right Side: Dynamic Asset Table & Metadata Header */}
-        <Col xs={24} md={16} lg={18}>
+        <Col xs={24} md={fixedDatasetKey ? 24 : 16} lg={fixedDatasetKey ? 24 : 18}>
           <Card
             variant="borderless"
             className="kcht-card"
@@ -934,7 +1039,7 @@ export const AssetListPage: React.FC = () => {
                     }}
                     size="small"
                   >
-                    Thêm mới
+                    {createButtonLabel}
                   </Button>
                 )}
                 {canImport && (
@@ -963,13 +1068,13 @@ export const AssetListPage: React.FC = () => {
                 >
                   Xuất file CSV
                 </Button>
-                <Button
+                {showMapAction && <Button
                   icon={<CompassOutlined />}
                   onClick={() => navigate(`/map?dataset=${selectedDatasetKey}`)}
                   size="small"
                 >
                   Mở WebGIS
-                </Button>
+                </Button>}
               </Space>
             </div>
 
@@ -1095,11 +1200,11 @@ export const AssetListPage: React.FC = () => {
               })()
             ) : !recordsData?.content.length ? (
               <EmptyState
-                title={searchKeyword.trim() || branchFilter ? 'Không có bản ghi phù hợp' : 'Tập dữ liệu chưa có bản ghi'}
+                title={searchKeyword.trim() || branchFilter ? 'Không có bản ghi phù hợp' : emptyTitle}
                 description={
                   searchKeyword.trim() || branchFilter
                     ? 'Không có bản ghi nào khớp với bộ lọc hiện tại.'
-                    : 'API trả về danh sách rỗng cho tập dữ liệu này.'
+                    : emptyDescription
                 }
                 actionText={searchKeyword.trim() || branchFilter ? 'Xóa bộ lọc' : 'Làm mới'}
                 onAction={() => {

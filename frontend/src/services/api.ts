@@ -5,6 +5,7 @@ export type { PagedResponse } from './pagination';
 
 // Token storage key
 const TOKEN_KEY = 'kcht_access_token';
+const REFRESH_SESSION_KEY = 'kcht_refresh_session';
 
 export const getStoredToken = (): string | null => {
   return localStorage.getItem(TOKEN_KEY);
@@ -15,6 +16,18 @@ export const setStoredToken = (token: string | null): void => {
     localStorage.setItem(TOKEN_KEY, token);
   } else {
     localStorage.removeItem(TOKEN_KEY);
+  }
+};
+
+export const hasStoredRefreshSession = (): boolean => {
+  return localStorage.getItem(REFRESH_SESSION_KEY) === 'active';
+};
+
+export const setStoredRefreshSession = (active: boolean): void => {
+  if (active) {
+    localStorage.setItem(REFRESH_SESSION_KEY, 'active');
+  } else {
+    localStorage.removeItem(REFRESH_SESSION_KEY);
   }
 };
 
@@ -95,6 +108,7 @@ apiClient.interceptors.response.use(
 
         if (newToken) {
           setStoredToken(newToken);
+          setStoredRefreshSession(true);
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
           }
@@ -104,6 +118,7 @@ apiClient.interceptors.response.use(
       } catch (refreshErr) {
         processQueue(refreshErr, null);
         setStoredToken(null);
+        setStoredRefreshSession(false);
         // Dispatch custom event for AuthContext to detect logout
         window.dispatchEvent(new CustomEvent('auth:expired'));
         return Promise.reject(refreshErr);

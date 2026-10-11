@@ -11,6 +11,7 @@ import {
   useAuth,
 } from '../context/AuthContext';
 import { UserSummary } from '../services/api';
+import * as authApi from '../services/authApi';
 
 const VietnameseDisplayConsumer: React.FC = () => {
   const { user } = useAuth();
@@ -140,6 +141,8 @@ describe('P0.6 Vietnamese UTF-8 Encoding & Profile Cache Tests', () => {
       };
       localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(validUser));
       localStorage.setItem(PROFILE_CACHE_VERSION_KEY, CURRENT_PROFILE_CACHE_VERSION);
+      localStorage.setItem('kcht_access_token', 'valid_token');
+      vi.spyOn(authApi, 'getMeApi').mockResolvedValue(validUser);
 
       render(
         <AuthProvider>

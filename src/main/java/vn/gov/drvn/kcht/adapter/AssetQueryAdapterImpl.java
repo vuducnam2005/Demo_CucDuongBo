@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import vn.gov.drvn.kcht.dto.GeoJsonFeatureCollectionDto;
@@ -22,8 +23,11 @@ import vn.gov.drvn.kcht.repository.AssetGeometryRepository;
 import vn.gov.drvn.kcht.repository.AssetRecordRepository;
 import vn.gov.drvn.kcht.repository.AuditLogRepository;
 import vn.gov.drvn.kcht.repository.projection.AssetSpatialProjection;
+import vn.gov.drvn.kcht.service.DatasetPermissionService;
 import vn.gov.drvn.kcht.service.DatasetQueryService;
 
+import jakarta.persistence.criteria.Predicate;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.*;
 
@@ -43,6 +47,7 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
     private final AuditLogRepository auditLogRepository;
     private final AssetMapper assetMapper;
     private final DatasetQueryService rawQueryService;
+    private final DatasetPermissionService permissionService;
     private final ObjectMapper objectMapper;
 
     public AssetQueryAdapterImpl(AssetRecordRepository assetRecordRepository,
@@ -50,12 +55,14 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
                                  AuditLogRepository auditLogRepository,
                                  AssetMapper assetMapper,
                                  DatasetQueryService rawQueryService,
+                                 DatasetPermissionService permissionService,
                                  ObjectMapper objectMapper) {
         this.assetRecordRepository = assetRecordRepository;
         this.assetGeometryRepository = assetGeometryRepository;
         this.auditLogRepository = auditLogRepository;
         this.assetMapper = assetMapper;
         this.rawQueryService = rawQueryService;
+        this.permissionService = permissionService;
         this.objectMapper = objectMapper;
     }
 
@@ -73,6 +80,7 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
     @Override
     public PagedResponse<RecordItemDto> getRecords(String datasetKey, String keyword, Map<String, String> allParams,
                                                   String sortParam, int page, int size, String userRole) {
+        permissionService.checkDatasetAccess(datasetKey, userRole);
         int validPage = Math.max(0, page);
         int validSize = Math.min(Math.max(1, size), 100);
 
@@ -81,7 +89,8 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
             Sort sort = parseSortParam(sortParam);
             Pageable pageable = PageRequest.of(validPage, validSize, sort);
 
-            Page<AssetRecordEntity> entityPage = assetRecordRepository.findByDatasetCodeAndIsDeletedFalse(datasetKey, pageable);
+            Page<AssetRecordEntity> entityPage = assetRecordRepository.findAll(
+                    buildCuratedSpecification(datasetKey, keyword, allParams), pageable);
             List<RecordItemDto> dtoList = entityPage.getContent().stream()
                     .map(assetMapper::toRecordItemDto)
                     .toList();
@@ -95,6 +104,7 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
 
     @Override
     public RecordItemDto getRecordById(String datasetKey, String idOrKey, String userRole) {
+        permissionService.checkDatasetAccess(datasetKey, userRole);
         if (idOrKey == null || idOrKey.isBlank()) {
             throw new BadRequestException("Mã định danh bản ghi không được để trống");
         }
@@ -117,6 +127,36 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
         }
 
         return rawQueryService.getRecordById(datasetKey, idOrKey, userRole);
+    }
+
+    @Override
+    public byte[] exportRecordsToCsv(String datasetKey, String keyword, Map<String, String> allParams,
+                                     String sortParam, int limit, String userRole) {
+        permissionService.checkDatasetAccess(datasetKey, userRole);
+        if (!isCuratedPopulated(datasetKey)) {
+            return rawQueryService.exportRecordsToCsv(datasetKey, keyword, allParams, sortParam, limit, userRole);
+        }
+
+        int validLimit = Math.min(Math.max(1, limit), 5000);
+        Page<AssetRecordEntity> page = assetRecordRepository.findAll(
+                buildCuratedSpecification(datasetKey, keyword, allParams),
+                PageRequest.of(0, validLimit, parseSortParam(sortParam)));
+
+        StringBuilder csv = new StringBuilder("\uFEFF");
+        csv.append("STT,Mã bản ghi,Tên / Nhãn tài sản,Đơn vị quản lý,Trạng thái,Thời điểm cập nhật,Dữ liệu JSON\n");
+        int index = 1;
+        for (AssetRecordEntity entity : page.getContent()) {
+            RecordItemDto record = assetMapper.toRecordItemDto(entity);
+            csv.append(index++).append(',')
+                    .append(csvEscape(record.getRecordKey())).append(',')
+                    .append(csvEscape(entity.getName())).append(',')
+                    .append(csvEscape(entity.getBranchId())).append(',')
+                    .append(csvEscape(entity.getStateName() != null ? entity.getStateName() : entity.getState())).append(',')
+                    .append(csvEscape(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : "")).append(',')
+                    .append(csvEscape(record.getPayload() != null ? record.getPayload().toString() : "{}"))
+                    .append('\n');
+        }
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     @Override
@@ -249,5 +289,70 @@ public class AssetQueryAdapterImpl implements AssetQueryAdapter {
             case "updated_at", "updatedat" -> Sort.by(direction, "updatedAt").and(Sort.by(Sort.Direction.ASC, "id"));
             default -> Sort.by(direction, "id");
         };
+    }
+
+    private Specification<AssetRecordEntity> buildCuratedSpecification(
+            String datasetKey, String keyword, Map<String, String> allParams) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("datasetCode"), datasetKey));
+            predicates.add(cb.isFalse(root.get("isDeleted")));
+
+            if (keyword != null && !keyword.isBlank()) {
+                String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("recordId")), pattern),
+                        cb.like(cb.lower(root.get("name")), pattern),
+                        cb.like(cb.lower(root.get("routeCode")), pattern),
+                        cb.like(cb.lower(root.get("routeName")), pattern),
+                        cb.like(cb.lower(root.get("assetType")), pattern)
+                ));
+            }
+
+            if (allParams != null) {
+                for (Map.Entry<String, String> entry : allParams.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    if (key == null || value == null || value.isBlank()
+                            || Set.of("q", "keyword", "page", "size", "sort", "limit", "format")
+                            .contains(key.toLowerCase(Locale.ROOT))) {
+                        continue;
+                    }
+                    if ("exclude_asset_type".equalsIgnoreCase(key)) {
+                        List<String> excluded = Arrays.stream(value.split(","))
+                                .map(String::trim)
+                                .filter(item -> !item.isBlank())
+                                .map(item -> item.toLowerCase(Locale.ROOT))
+                                .toList();
+                        if (!excluded.isEmpty()) {
+                            predicates.add(cb.not(cb.lower(root.get("assetType")).in(excluded)));
+                        }
+                        continue;
+                    }
+
+                    String field = key.startsWith("filter_") ? key.substring(7) : key;
+                    switch (field) {
+                        case "branch_id" -> predicates.add(cb.equal(root.get("branchId"), value.trim()));
+                        case "asset_type" -> predicates.add(cb.equal(cb.lower(root.get("assetType")), value.trim().toLowerCase(Locale.ROOT)));
+                        case "state", "state_name" -> predicates.add(cb.or(
+                                cb.equal(root.get("state"), value.trim()),
+                                cb.equal(root.get("stateName"), value.trim())));
+                        case "route_code" -> predicates.add(cb.equal(root.get("routeCode"), value.trim()));
+                        default -> {
+                            // Dynamic JSON attributes remain available in the response but are not interpolated into SQL.
+                        }
+                    }
+                }
+            }
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    private String csvEscape(String value) {
+        if (value == null) return "";
+        String escaped = value.replace("\"", "\"\"");
+        return escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") || escaped.contains("\r")
+                ? "\"" + escaped + "\""
+                : escaped;
     }
 }

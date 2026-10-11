@@ -24,6 +24,7 @@ import {
   FolderOpenOutlined,
   CloudUploadOutlined,
   AppstoreOutlined,
+  BranchesOutlined,
   SettingOutlined,
   TeamOutlined,
   AuditOutlined,
@@ -46,6 +47,8 @@ const { Text } = Typography;
 const routeBreadcrumbMap: Record<string, string[]> = {
   "/dashboard": ["Bảng điều hành"],
   "/assets": ["Danh mục tài sản"],
+  "/green-trees": ["Cây xanh"],
+  "/other-assets": ["Tài sản khác"],
   "/map": ["Bản đồ số WebGIS"],
   "/map/assets": ["Bản đồ tài sản"],
   "/cases": ["Hồ sơ đã xử lý"],
@@ -63,6 +66,8 @@ const routeBreadcrumbMap: Record<string, string[]> = {
 const menuRouteKeys = [
   "/dashboard",
   "/assets",
+  "/green-trees",
+  "/other-assets",
   "/map",
   "/map/assets",
   "/cases",
@@ -154,6 +159,16 @@ export const MainLayout: React.FC = () => {
         key: "/assets",
         icon: <TableOutlined />,
         label: "Danh mục tài sản",
+      },
+      {
+        key: "/green-trees",
+        icon: <BranchesOutlined />,
+        label: "Cây xanh",
+      },
+      {
+        key: "/other-assets",
+        icon: <AppstoreOutlined />,
+        label: "Tài sản khác",
       },
       {
         key: "/map",
