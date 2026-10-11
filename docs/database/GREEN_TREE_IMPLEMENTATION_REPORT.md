@@ -28,26 +28,29 @@ The final command results for this workspace are recorded here before handoff:
 
 ## Production evidence
 
-The local verification snapshot below was captured before production rollout. Values that remain unknown must be filled by the trusted deployment runner after executing the runbook:
+Production preflight and deployment verification were captured on 2026-10-11. Detailed database
+evidence is stored in `GREEN_TREE_PRODUCTION_PREFLIGHT_2026-10-11.md`.
 
 | Evidence | Status |
 |---|---|
-| Trees before/after | Unknown / not run |
-| Active/deleted trees | Unknown / not run |
-| Trees with/without selected coordinates | Unknown / not run |
-| Trees with images/documents | Unknown / not run |
-| Duplicate `record_id` / `raw_record_id` | Unknown / not run |
-| Tree, attribute, and raw checksums | Unknown / not run |
-| Supabase backup identifier | Not created by this implementation |
-| Supabase Flyway history | Untouched |
-| Render storage mode | Untouched; repository default is `LEGACY` |
-| Render deployed commit | Unknown / untouched |
-| Vercel deployed commit | Unknown / untouched |
-| GitHub commit | Use the Git commit containing this report |
+| Trees before/after | 60 / not backfilled |
+| Active/deleted trees | 60 / 0 |
+| Trees with/without selected coordinates | 60 / 0 |
+| Trees with images/documents | 60 / 0 |
+| Duplicate `record_id` / `raw_record_id` groups | 0 / 0 |
+| Tree, attribute, and raw checksums | Captured in production preflight evidence |
+| Supabase backup identifier | Blocked: Free Plan reports no backups |
+| Supabase Flyway history | Absent; V23/V24 unapplied |
+| Render storage mode | `LEGACY`; `FLYWAY_ENABLED=false` |
+| Render deployed commit | `c7b7f4a9c182900e861ec4a58e4f9d1dc188caed` |
+| Vercel deployed commit | `c7b7f4a9c182900e861ec4a58e4f9d1dc188caed` |
+| GitHub commit | `c7b7f4a9c182900e861ec4a58e4f9d1dc188caed` before the deployment-safety follow-up |
 
 ## Release blockers
 
-Before promotion to SHADOW/NEW, run the preflight, apply Flyway with explicit targets, and require zero reconciliation mismatches as documented in `GREEN_TREE_SEPARATION_RUNBOOK.md`.
+Before promotion to SHADOW/NEW, create a restorable backup, initialize Flyway at baseline V22,
+apply Flyway with explicit targets, and require zero reconciliation mismatches as documented in
+`GREEN_TREE_SEPARATION_RUNBOOK.md`.
 
 Before FINAL, pause tree writes, run final reconciliation, synchronize the identity sequence with `scripts/green-tree/05_sync_sequence_before_final.sql`, and verify a controlled create uses an ID above the prior maximum.
 

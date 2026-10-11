@@ -64,13 +64,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: -connectRetries=60 -baselineOnMigrate=true migrate
+    command: -connectRetries=60 migrate
     environment:
-      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?Vui lòng cấu hình POSTGRES_DB trong .env.production}
+      FLYWAY_URL: "jdbc:postgresql://${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?Vui lòng cấu hình POSTGRES_DB trong .env.production}?sslmode=${POSTGRES_SSLMODE:-disable}&currentSchema=public"
       FLYWAY_USER: ${POSTGRES_USER:?Vui lòng cấu hình POSTGRES_USER trong .env.production}
       FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?Vui lòng cấu hình POSTGRES_PASSWORD trong .env.production}
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
       FLYWAY_CONNECT_RETRIES: 60
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+      FLYWAY_BASELINE_VERSION: ${FLYWAY_BASELINE_VERSION:-22}
+      FLYWAY_TARGET: ${FLYWAY_TARGET:-22}
+      FLYWAY_SCHEMAS: public
     volumes:
       - ./db/migration:/flyway/sql:ro
     networks:

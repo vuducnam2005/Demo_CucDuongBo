@@ -110,6 +110,27 @@ An invalid GREEN_TREE_STORAGE_MODE stops application startup with an explicit er
 5. Stop if duplicate IDs/lineage, suspicious coordinates, or unknown constraints need a decision.
 6. Record the raw-data and tree checksums.
 
+Production currently has the V22 schema/data but no `flyway_schema_history` table. The first
+managed Flyway run must therefore use `FLYWAY_BASELINE_VERSION=22`. Never baseline at V21 (or
+Flyway's default V1): rerunning V22 updates legacy tree timestamps before backfill.
+
+For a Supabase runner, configure the environment without committing secrets:
+
+~~~dotenv
+POSTGRES_HOST=aws-0-ap-southeast-1.pooler.supabase.com
+POSTGRES_PORT=5432
+POSTGRES_DB=postgres
+POSTGRES_USER=postgres.<project-ref>
+POSTGRES_SSLMODE=require
+FLYWAY_BASELINE_VERSION=22
+FLYWAY_TARGET=22
+~~~
+
+The production compose Flyway service now builds its JDBC URL from these variables. Use
+`--no-deps` so a trusted runner does not start the compose-local PostgreSQL service while targeting
+Supabase. The default target is also pinned at V22, so enabling Flyway without an explicit release
+target cannot apply V23 and V24 together.
+
 Do not use C:\dataexcel as a migration source. It may only be used for a separately approved comparison report.
 
 ### Release 1A - EXPAND only
@@ -117,11 +138,20 @@ Do not use C:\dataexcel as a migration source. It may only be used for a separat
 Do not run the existing all-the-way migration helper for this gate. Target Flyway version 23 explicitly:
 
 ~~~powershell
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm flyway info
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm flyway validate
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm flyway -target=23 migrate
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm flyway info
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway info
+
+# Run this once only when flyway_schema_history is absent.
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway baseline
+
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway info
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway validate
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway -target=23 migrate
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway info
 ~~~
+
+After the explicit baseline, stop unless `flyway info` shows V22 as `Baseline` rather than
+`Success` or `Pending`. The intended state after Release 1A is a V22 baseline followed only by a
+successful V23 migration, with V24 still pending.
 
 Then:
 
@@ -139,9 +169,9 @@ Rollback at this point: set the mode back to LEGACY; retain the new table for in
 Target Flyway version 24 explicitly:
 
 ~~~powershell
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm flyway validate
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm flyway -target=24 migrate
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm flyway info
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway validate
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway -target=24 migrate
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --no-deps flyway info
 ~~~
 
 Then:

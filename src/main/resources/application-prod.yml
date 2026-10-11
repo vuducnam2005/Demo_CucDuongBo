@@ -29,7 +29,11 @@ spring:
     enabled: ${FLYWAY_ENABLED:false}
     locations: classpath:db/migration
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
-    baseline-version: ${FLYWAY_BASELINE_VERSION:21}
+    # Production already contains the V22 schema/data but has no Flyway history table.
+    # Baseline at V22 so the first managed run starts with the non-destructive V23 expand.
+    baseline-version: ${FLYWAY_BASELINE_VERSION:22}
+    # A blind enable must not run EXPAND and BACKFILL in the same application startup.
+    target: ${FLYWAY_TARGET:22}
     validate-on-migrate: true
   jpa:
     show-sql: false
