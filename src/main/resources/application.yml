@@ -22,6 +22,8 @@ spring:
       maximum-pool-size: 10
       minimum-idle: 2
       connection-timeout: 30000
+  flyway:
+    enabled: false
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
